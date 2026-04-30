@@ -6,7 +6,7 @@ Provides ML-based pressure ulcer risk prediction using:
 - Pluggable predictor interface for future model updates
 """
 
-from .predictor import Predictor, XGBoostPredictor, MockPredictor
+from .predictor import Predictor, XGBoostPredictor, MockPredictor, get_predictor
 from .feature_extractor import FeatureExtractor
 
 __all__ = [
@@ -14,4 +14,5 @@ __all__ = [
     "XGBoostPredictor",
     "MockPredictor",
     "FeatureExtractor",
+    "get_predictor"
 ]
