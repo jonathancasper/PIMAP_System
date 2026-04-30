@@ -1,0 +1,107 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: PIMAP Patient Monitoring Dashboard for Pressure Ulcer Predictions
+
+Parameters:
+  EpicClientId:
+    Type: String
+    Description: Epic FHIR OAuth client ID
+    NoEcho: true
+
+Globals:
+  Function:
+    Timeout: 60
+    Runtime: python3.11
+    Environment:
+      Variables:
+        VITALS_TABLE: !Ref VitalsTable
+        EPIC_CLIENT_ID: !Ref EpicClientId
+
+Resources:
+  VitalsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: patient_vitals
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: patient_id
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: S
+      KeySchema:
+        - AttributeName: patient_id
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+
+  PatientApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: dev
+      Cors:
+        AllowMethods: "'*'"
+        AllowHeaders: "'*'"
+        AllowOrigin: "'*'"
+
+  GetPatientsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../..
+      Handler: pimap_dashboard.api.patients.get_patients
+      Timeout: 60
+      Events:
+        GetPatients:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PatientApi
+            Path: /patients
+            Method: get
+
+  GetPatientVitalsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../..
+      Handler: pimap_dashboard.api.vitals.get_patient_vitals
+      Timeout: 60
+      Events:
+        GetVitals:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PatientApi
+            Path: /patients/{patient_id}/vitals
+            Method: get
+
+  PredictPressureUlcerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../..
+      Handler: pimap_dashboard.api.predict.predict_pressure_ulcer
+      Timeout: 60
+      Events:
+        PredictApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PatientApi
+            Path: /patients/{patient_id}/predict
+            Method: post
+
+  UpdateActionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../..
+      Handler: pimap_dashboard.api.actions.update_action
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref VitalsTable
+      Events:
+        UpdateAction:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PatientApi
+            Path: /patients/{patient_id}/actions
+            Method: post
+
+Outputs:
+  PatientApiUrl:
+    Description: "API Gateway endpoint URL"
+    Value: !Sub "https://${PatientApi}.execute-api.${AWS::Region}.amazonaws.com/dev/"

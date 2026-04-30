@@ -1,0 +1,1963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pressure Ulcer Monitoring (PIMAP)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .nav-tabs {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .nav-tab {
+            padding: 12px 25px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
+        }
+
+        .nav-tab:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(52, 152, 219, 0.4);
+        }
+
+        .nav-tab.active {
+            background: #e74c3c;
+            box-shadow: 0 4px 15px rgba(231, 76, 60, 0.3);
+        }
+
+        .screen {
+            display: none;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        .screen.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .patients-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .patient-card {
+            background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .patient-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+        }
+
+        .patient-card.high-risk {
+            background: linear-gradient(135deg, #fd79a8 0%, #e84393 100%);
+        }
+
+        .patient-card.medium-risk {
+            background: linear-gradient(135deg, #fdcb6e 0%, #e17055 100%);
+        }
+
+        .patient-info h3 {
+            font-size: 1.3rem;
+            margin-bottom: 8px;
+        }
+
+        .patient-details {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .risk-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            font-size: 0.85rem;
+            font-weight: bold;
+        }
+
+        .back-btn {
+            background: #95a5a6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .back-btn:hover {
+            background: #7f8c8d;
+            transform: translateY(-2px);
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .metric-card {
+            background: linear-gradient(135deg, #00b894 0%, #00a085 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .metric-card.warning {
+            background: linear-gradient(135deg, #fdcb6e 0%, #e17055 100%);
+        }
+
+        .metric-card.critical {
+            background: linear-gradient(135deg, #fd79a8 0%, #e84393 100%);
+        }
+
+        .metric-value {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .metric-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .chart-container {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .recommendations {
+            background: linear-gradient(135deg, #a29bfe 0%, #6c5ce7 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 20px;
+        }
+
+        .recommendations h3 {
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+        }
+
+        .recommendation-item {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 4px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .dashboard-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .dashboard-table th {
+            background: linear-gradient(135deg, #2d3436 0%, #636e72 100%);
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        .dashboard-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .dashboard-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .priority-high {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+
+        .priority-medium {
+            color: #f39c12;
+            font-weight: bold;
+        }
+
+        .priority-low {
+            color: #27ae60;
+            font-weight: bold;
+        }
+
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+
+        .status-progress {
+            background: #d1ecf1;
+            color: #0c5460;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+
+        .status-resolved {
+            background: #d4edda;
+            color: #155724;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+
+        .action-btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.3s ease;
+        }
+
+        .action-btn:hover {
+            background: #2980b9;
+            transform: translateY(-1px);
+        }
+
+        .search-box {
+            width: 0;
+            padding: 12px 0;
+            border: 2px solid #ddd;
+            border-radius: 25px;
+            font-size: 1rem;
+            margin-bottom: 20px;
+            background: white;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            opacity: 0;
+            margin-left: 10px;
+        }
+
+        .search-box.expanded {
+            width: 300px;
+            padding: 12px 20px;
+            opacity: 1;
+        }
+
+        .search-box.collapsed {
+            width: 0;
+            padding: 12px 0;
+            opacity: 0;
+            border: none;
+            margin-left: 0;
+        }
+
+        .search-box:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
+        }
+
+        .stats-overview {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-card.danger {
+            background: linear-gradient(135deg, #fd79a8 0%, #e84393 100%);
+        }
+
+        .stat-card.warning {
+            background: linear-gradient(135deg, #fdcb6e 0%, #e17055 100%);
+        }
+
+        .stat-card.success {
+            background: linear-gradient(135deg, #00b894 0%, #00a085 100%);
+        }
+
+        .header {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+        }
+
+        .generate-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: linear-gradient(135deg, #00b894 0%, #00a085 100%);
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1.2rem;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 184, 148, 0.3);
+            z-index: 1000;
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .generate-btn:hover {
+            background: linear-gradient(135deg, #00a085 0%, #00b894 100%);
+            transform: translateY(-2px) scale(1.1);
+            box-shadow: 0 6px 20px rgba(0, 184, 148, 0.4);
+        }
+
+        .generate-btn:disabled {
+            background: #95a5a6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .search-container {
+            position: relative;
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .search-icon {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .search-icon:hover {
+            background: #2980b9;
+            transform: scale(1.1);
+        }
+
+        .view-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .view-toggle {
+            display: flex;
+            gap: 5px;
+        }
+
+        .view-btn {
+            padding: 8px 15px;
+            border: 2px solid #3498db;
+            background: white;
+            color: #3498db;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .view-btn.active {
+            background: #3498db;
+            color: white;
+        }
+
+        .patients-list {
+            display: none;
+        }
+
+        .patients-list.active {
+            display: block;
+        }
+
+        .patients-grid.active {
+            display: grid;
+        }
+
+        .patients-grid:not(.active) {
+            display: none;
+        }
+
+        .patient-row {
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .patient-header {
+            padding: 15px 20px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.2s ease;
+        }
+
+        .patient-header:hover {
+            background-color: #f8f9fa;
+        }
+
+        .patient-basic-info {
+            display: flex;
+            gap: 30px;
+            align-items: center;
+        }
+
+        .patient-name {
+            font-weight: bold;
+            font-size: 1.1rem;
+            color: #2c3e50;
+        }
+
+        .patient-meta {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .expand-icon {
+            transition: transform 0.3s ease;
+        }
+
+        .expand-icon.expanded {
+            transform: rotate(180deg);
+        }
+
+        .vitals-section {
+            max-height: 0;
+            overflow: hidden;
+            padding: 0 20px;
+            border-top: 1px solid #eee;
+            background-color: #f8f9fa;
+            transition: max-height 0.3s ease;
+        }
+
+        .vitals-section.expanded {
+            max-height: 800px;
+            padding: 20px 20px;
+            transition: max-height 0.3s ease, padding 0.1s ease;
+        }
+
+        .loading-row {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+        }
+
+        .dashboard-main-row:hover {
+            background-color: #f8f9fa;
+        }
+
+        .dashboard-vitals-section {
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-top: 1px solid #ddd;
+        }
+
+        .dashboard-vitals-row {
+            background-color: #f8f9fa;
+        }
+
+        .vitals-loading {
+            padding: 15px;
+            text-align: center;
+            color: #666;
+        }
+
+        .vitals-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            background: white;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .vitals-table th {
+            background: #34495e;
+            color: white;
+            padding: 10px;
+            text-align: left;
+            font-size: 0.85rem;
+        }
+
+        .vitals-table td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #eee;
+            font-size: 0.85rem;
+        }
+
+        .vitals-table tr:hover {
+            background-color: #f1f2f6;
+        }
+
+        .autocomplete-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 50px;
+            width: 300px;
+            background: white;
+            border: 1px solid #ddd;
+            border-top: none;
+            border-radius: 0 0 15px 15px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 10001;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            display: none;
+        }
+
+        .autocomplete-item {
+            padding: 12px 20px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+            transition: background-color 0.2s ease;
+        }
+
+        .autocomplete-item:hover,
+        .autocomplete-item.selected {
+            background-color: #f8f9fa;
+        }
+
+        .autocomplete-item:last-child {
+            border-bottom: none;
+        }
+        
+        .vitals-table th,
+        .vitals-table td {
+            transition: all 0.2s ease;
+        }
+        
+        div[style*="margin-bottom: 10px"] label {
+            display: inline-block;
+            margin-right: 15px;
+            margin-bottom: 5px;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+        
+        div[style*="margin-bottom: 10px"] input[type="checkbox"] {
+            margin-right: 5px;
+        }
+
+        .acknowledge-popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            z-index: 10000;
+            width: 400px;
+            max-width: 90vw;
+        }
+
+        .acknowledge-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 9999;
+        }
+
+        .acknowledge-popup h3 {
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+
+        .acknowledge-popup select,
+        .acknowledge-popup textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+
+        .acknowledge-popup textarea {
+            height: 80px;
+            resize: vertical;
+        }
+
+        .acknowledge-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .acknowledge-buttons button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .save-btn {
+            background: #27ae60;
+            color: white;
+        }
+
+        .save-btn:hover {
+            background: #219a52;
+        }
+
+        .cancel-btn {
+            background: #95a5a6;
+            color: white;
+        }
+
+        .cancel-btn:hover {
+            background: #7f8c8d;
+        }
+
+        .notification-toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #00b894 0%, #00a085 100%);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 300px;
+            animation: slideUp 0.3s ease-out;
+        }
+
+        .notification-toast.error {
+            background: linear-gradient(135deg, #fd79a8 0%, #e84393 100%);
+        }
+
+        .notification-toast .close-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            margin-left: auto;
+            padding: 0;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .notification-toast .close-btn:hover {
+            opacity: 0.7;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateX(-50%) translateY(100px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(-50%) translateY(0);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-content">
+                <div></div>
+                <h1>🏥 Pressure Ulcer Monitoring (PIMAP)</h1>
+                <div class="search-container" id="searchContainer">
+                    <button class="search-icon" id="searchIcon" onclick="toggleSearch()">🔍</button>
+                    <input type="text" class="search-box collapsed" id="patientSearch" placeholder="Search patients..." autocomplete="off">
+                    <div class="autocomplete-dropdown" id="autocompleteDropdown"></div>
+                </div>
+            </div>
+            <div class="nav-tabs">
+                <button class="nav-tab active" onclick="showScreen('patients')">Patient List</button>
+                <button class="nav-tab" onclick="showScreen('dashboard')">Dashboard</button>
+            </div>
+        </div>
+
+        <!-- Patient List Screen -->
+        <div id="patients" class="screen active">
+            <h2>Patient Management</h2>
+            <div class="patients-list active" id="patientsList">
+                <!-- List view will be populated by JavaScript -->
+            </div>
+        </div>
+
+        <!-- Patient Details Screen -->
+        <div id="patient-details" class="screen">
+            <button class="back-btn" onclick="showScreen('patients')">&larr; Back to Patient List</button>
+            <div id="patientDetailsContent">
+                <!-- Patient details will be populated by JavaScript -->
+            </div>
+        </div>
+
+        <!-- PU Dashboard Screen -->
+        <div id="dashboard" class="screen">
+            <h2>Pressure Ulcer Prediction Dashboard</h2>
+            <div class="stats-overview">
+                <div class="stat-card danger">
+                    <div class="metric-value">0</div>
+                    <div class="metric-label">High Severity Patients</div>
+                </div>
+                <div class="stat-card warning">
+                    <div class="metric-value">0</div>
+                    <div class="metric-label">Low Severity Patients</div>
+                </div>
+                <div class="stat-card">
+                    <div class="metric-value">0</div>
+                    <div class="metric-label">Active Alerts</div>
+                </div>
+                <div class="stat-card success">
+                    <div class="metric-value">0</div>
+                    <div class="metric-label">Total Patients</div>
+                </div>
+            </div>
+            
+            <table class="dashboard-table">
+                <thead>
+                    <tr>
+                        <th>Patient</th>
+                        <th>Severity Level</th>
+                        <th>Prediction Score</th>
+                        <th>Next Steps</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="dashboardTableBody">
+                    <!-- Dashboard data will be populated by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <button class="generate-btn" id="generateBtn" onclick="generateNewVitals()">+</button>
+
+    <script>
+        // API Configuration
+        const API_BASE_URL = 'http://127.0.0.1:3000'; // Change to your deployed API URL
+        
+        let patients = [];
+        let patientVitals = {};
+
+        let dashboardData = [];
+
+        let currentPatient = null;
+        let currentChart = null;
+
+        function showScreen(screenName) {
+            // Hide all screens
+            document.querySelectorAll('.screen').forEach(screen => {
+                screen.classList.remove('active');
+            });
+            
+            // Remove active class from all tabs
+            document.querySelectorAll('.nav-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected screen
+            document.getElementById(screenName).classList.add('active');
+            
+            // Add active class to corresponding tab
+            event.target.classList.add('active');
+        }
+
+        async function loadPatients() {
+            try {
+                console.log('Loading patients from:', API_BASE_URL);
+                const response = await fetch(`${API_BASE_URL}/patients`);
+                const data = await response.json();
+                console.log('Received patient data:', data);
+                
+                // Load patients immediately without risk levels
+                patients = data.map(p => ({
+                    ...p,
+                    name: `${p.first_name} ${p.last_name}`,
+                    age: new Date().getFullYear() - new Date(p.dob).getFullYear(),
+                    riskLevel: 'Loading...',
+                    predictionScore: 0
+                }));
+                
+                console.log('Processed patients:', patients);
+                
+                // Render immediately
+                renderPatientsList();
+                
+                // Load severity levels asynchronously
+                loadSeverityLevels();
+            } catch (error) {
+                console.error('Error loading patients:', error);
+            }
+        }
+        
+        async function loadSeverityLevels() {
+            for (let i = 0; i < patients.length; i++) {
+                try {
+                    const predResponse = await fetch(`${API_BASE_URL}/patients/${patients[i].patient_id}/predict`, {
+                        method: 'POST'
+                    });
+                    const prediction = await predResponse.json();
+                    patients[i].riskLevel = prediction.risk_level;
+                    patients[i].predictionScore = Math.round(prediction.prediction_score * 100);
+                    
+                    // Update UI incrementally for both views
+                    renderPatients();
+                    renderPatientsList();
+                } catch (error) {
+                    console.error(`Error getting prediction for ${patients[i].patient_id}:`, error);
+                    patients[i].riskLevel = 'Unknown';
+                    // Update UI even on error
+                    renderPatients();
+                    renderPatientsList();
+                }
+            }
+        }
+        
+
+        
+
+        
+        async function renderPatientsList(patientsToRender = patients) {
+            const list = document.getElementById('patientsList');
+            list.innerHTML = '';
+            
+            for (const patient of patientsToRender) {
+                const patientRow = document.createElement('div');
+                patientRow.className = 'patient-row';
+                
+                // Load vitals only when expanded (lazy loading)
+                let vitalsData = [];
+                
+                patientRow.innerHTML = `
+                    <div class="patient-header" onclick="toggleVitals('${patient.patient_id}')">
+                        <div class="patient-basic-info">
+                            <div class="patient-name">
+                                <span class="expand-icon" id="icon-${patient.patient_id}" style="margin-right: 8px;">▶</span>
+                                ${patient.name}
+                            </div>
+                            <div class="patient-meta">ID: ${patient.patient_id}</div>
+                            <div class="patient-meta">Age: ${patient.age}</div>
+                            <div class="patient-meta">Gender: ${patient.gender}</div>
+                            <div class="patient-meta">Height: ${patient.height_ft || 'N/A'}' ${patient.height_in || 0}"</div>
+                            <div class="patient-meta">Location: Floor ${patient.floor || 'N/A'}, Room ${patient.room || 'N/A'}</div>
+                            <div class="patient-meta">Ethnicity: ${patient.ethnicity}</div>
+                            <div class="patient-meta">Admitted: ${new Date(patient.admission_time).toLocaleDateString()}</div>
+                            <span class="risk-badge" style="background: ${getRiskColor(patient.riskLevel)}; color: white; padding: 4px 8px; border-radius: 4px;">${patient.riskLevel === 'High' ? 'High Severity' : patient.riskLevel === 'Moderate' ? 'Low Severity' : patient.riskLevel}</span>
+                        </div>
+                    </div>
+                    <div class="vitals-section" id="vitals-${patient.patient_id}">
+                        <div class="vitals-loading">Click above to load vitals...</div>
+                    </div>
+                `;
+                
+                list.appendChild(patientRow);
+                
+                // Restore expanded state if it was previously expanded
+                if (expandedSections[patient.patient_id]) {
+                    const vitalsSection = document.getElementById(`vitals-${patient.patient_id}`);
+                    const icon = document.getElementById(`icon-${patient.patient_id}`);
+                    if (vitalsSection && icon) {
+                        vitalsSection.classList.add('expanded');
+                        icon.textContent = '▼';
+                        if (vitalsCache[patient.patient_id]) {
+                            vitalsSection.innerHTML = vitalsCache[patient.patient_id];
+                        }
+                    }
+                }
+            }
+        }
+        
+        function getRiskColor(riskLevel) {
+            switch(riskLevel) {
+                case 'High': return '#e74c3c';
+                case 'Moderate': return '#f39c12';
+                case 'Low': return '#27ae60';
+                default: return '#95a5a6';
+            }
+        }
+        
+        const expandedSections = {};
+        const vitalsCache = {};
+        
+        async function toggleVitals(patientId) {
+            const vitalsSection = document.getElementById(`vitals-${patientId}`);
+            const icon = document.getElementById(`icon-${patientId}`);
+            
+            if (expandedSections[patientId]) {
+                // Collapse
+                vitalsSection.classList.remove('expanded');
+                icon.textContent = '▶';
+                expandedSections[patientId] = false;
+            } else {
+                // Expand
+                expandedSections[patientId] = true;
+                vitalsSection.classList.add('expanded');
+                icon.textContent = '▼';
+                
+                // Load vitals if not already cached
+                if (!vitalsCache[patientId]) {
+                    // Show table structure immediately
+                    const tableStructure = `
+                        <h4 style="margin-bottom: 15px;">Vitals History</h4>
+                        <table class="vitals-table">
+                            <thead>
+                                <tr>
+                                    <th>Timestamp</th>
+                                    <th>Weight</th>
+                                    <th>BP Systolic</th>
+                                    <th>O2 Sat</th>
+                                    <th>Glucose</th>
+                                    <th>Albumin</th>
+                                    <th>ICU Days</th>
+                                    <th>Braden Score</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="loading-row">
+                                    <td colspan="8">Loading vitals data...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    `;
+                    
+                    vitalsSection.innerHTML = tableStructure;
+                    
+                    try {
+                        const response = await fetch(`${API_BASE_URL}/patients/${patientId}/vitals`);
+                        const vitalsData = await response.json();
+                        
+                        const vitalsRows = vitalsData.map(vital => {
+                            const bradenScore = (vital.braden_sensory_perception || 0) + 
+                                               (vital.braden_moisture || 0) + 
+                                               (vital.braden_activity || 0) + 
+                                               (vital.braden_mobility || 0) + 
+                                               (vital.braden_nutrition || 0) + 
+                                               (vital.braden_friction_shear || 0);
+                            return `
+                                <tr>
+                                    <td>${new Date(vital.timestamp).toLocaleString()}</td>
+                                    <td>${vital.daily_weight || 'N/A'}</td>
+                                    <td>${vital.arterial_blood_pressure_systolic || 'N/A'}</td>
+                                    <td>${vital.arterial_o2_saturation || 'N/A'}%</td>
+                                    <td>${vital.glucose_whole_blood || 'N/A'}</td>
+                                    <td>${vital.albumin || 'N/A'}</td>
+                                    <td>${vital.icu_stay_duration || 'N/A'}</td>
+                                    <td>${bradenScore || 'N/A'}</td>
+                                    <td><span style="color: ${bradenScore <= 12 ? '#e74c3c' : bradenScore <= 16 ? '#f39c12' : '#27ae60'}; font-weight: bold;">${bradenScore <= 12 ? 'High Severity' : bradenScore <= 16 ? 'Low Severity' : 'Low Risk'}</span></td>
+                                </tr>
+                            `;
+                        }).join('');
+                        
+                        // Cache the complete table HTML
+                        vitalsCache[patientId] = `
+                            <h4 style="margin-bottom: 15px;">Vitals History <span class="chart-icon" onclick="showPatientDetails('${patientId}')" style="margin-left: 10px; cursor: pointer; color: #3498db;">📊</span></h4>
+                            <div style="margin-bottom: 10px;">
+                                <label><input type="checkbox" checked onchange="toggleColumn(this, 0)"> Timestamp</label>
+                                <label><input type="checkbox" checked onchange="toggleColumn(this, 1)"> Weight</label>
+                                <label><input type="checkbox" checked onchange="toggleColumn(this, 2)"> BP Systolic</label>
+                                <label><input type="checkbox" checked onchange="toggleColumn(this, 3)"> O2 Sat</label>
+                                <label><input type="checkbox" checked onchange="toggleColumn(this, 4)"> Glucose</label>
+                                <label><input type="checkbox" checked onchange="toggleColumn(this, 5)"> Albumin</label>
+                                <label><input type="checkbox" checked onchange="toggleColumn(this, 6)"> ICU Days</label>
+                                <label><input type="checkbox" checked onchange="toggleColumn(this, 7)"> Braden Score</label>
+                                <label><input type="checkbox" checked onchange="toggleColumn(this, 8)"> PU Severity</label>
+                            </div>
+                            <table class="vitals-table">
+                                <thead>
+                                    <tr>
+                                        <th>Timestamp</th>
+                                        <th>Weight</th>
+                                        <th>BP Systolic</th>
+                                        <th>O2 Sat</th>
+                                        <th>Glucose</th>
+                                        <th>Albumin</th>
+                                        <th>ICU Days</th>
+                                        <th>Braden Score</th>
+                                        <th>PU Severity</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${vitalsRows}
+                                </tbody>
+                            </table>
+                        `;
+                        
+                        vitalsSection.innerHTML = vitalsCache[patientId];
+                    } catch (error) {
+                        console.error(`Error loading vitals for ${patientId}:`, error);
+                        vitalsSection.innerHTML = `
+                            <h4 style="margin-bottom: 15px;">Vitals History</h4>
+                            <table class="vitals-table">
+                                <thead>
+                                    <tr>
+                                        <th>Timestamp</th>
+                                        <th>Weight</th>
+                                        <th>BP Systolic</th>
+                                        <th>O2 Sat</th>
+                                        <th>Glucose</th>
+                                        <th>Braden Score</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="loading-row"><td colspan="6">Error loading vitals</td></tr>
+                                </tbody>
+                            </table>
+                        `;
+                    }
+                } else {
+                    // Use cached data
+                    vitalsSection.innerHTML = vitalsCache[patientId];
+                }
+            }
+        }
+
+        let selectedIndex = -1;
+        
+        function toggleSearch() {
+            const searchBox = document.getElementById('patientSearch');
+            const searchIcon = document.getElementById('searchIcon');
+            
+            if (searchBox.classList.contains('collapsed')) {
+                searchBox.classList.remove('collapsed');
+                searchBox.classList.add('expanded');
+                setTimeout(() => searchBox.focus(), 300);
+            } else {
+                searchBox.classList.remove('expanded');
+                searchBox.classList.add('collapsed');
+                searchBox.value = '';
+                hideDropdown();
+                // Reset to show all patients
+                renderPatientsList(patients);
+            }
+        }
+        
+        function initializeSearch() {
+            const searchBox = document.getElementById('patientSearch');
+            const dropdown = document.getElementById('autocompleteDropdown');
+            
+            // Close search when clicking outside
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.search-container')) {
+                    const searchBox = document.getElementById('patientSearch');
+                    if (searchBox.classList.contains('expanded') && !searchBox.value) {
+                        toggleSearch();
+                    }
+                }
+            });
+            
+            searchBox.addEventListener('input', function(e) {
+                const query = e.target.value;
+                selectedIndex = -1;
+                
+                if (query.length === 0) {
+                    hideDropdown();
+                    renderPatientsList(patients);
+                    return;
+                }
+                
+                const matches = getMatches(query);
+                showDropdown(matches, query);
+                searchPatients(query);
+            });
+            
+            searchBox.addEventListener('keydown', function(e) {
+                const dropdown = document.getElementById('autocompleteDropdown');
+                const items = dropdown.querySelectorAll('.autocomplete-item');
+                
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+                    updateSelection(items);
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    selectedIndex = Math.max(selectedIndex - 1, -1);
+                    updateSelection(items);
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (selectedIndex >= 0 && items[selectedIndex]) {
+                        selectItem(items[selectedIndex]);
+                    }
+                } else if (e.key === 'Escape') {
+                    hideDropdown();
+                }
+            });
+            
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.search-container')) {
+                    hideDropdown();
+                }
+            });
+        }
+        
+        function getMatches(query) {
+            return patients.filter(patient => 
+                patient.name.toLowerCase().includes(query.toLowerCase()) ||
+                patient.patient_id.toLowerCase().includes(query.toLowerCase())
+            ).slice(0, 5);
+        }
+        
+        function showDropdown(matches, query) {
+            const dropdown = document.getElementById('autocompleteDropdown');
+            
+            if (matches.length === 0) {
+                hideDropdown();
+                return;
+            }
+            
+            dropdown.innerHTML = matches.map(patient => 
+                `<div class="autocomplete-item" data-patient-id="${patient.patient_id}">
+                    <strong>${highlightMatch(patient.name, query)}</strong><br>
+                    <small>ID: ${patient.patient_id} • ${patient.gender} • Age: ${patient.age}</small>
+                </div>`
+            ).join('');
+            
+            dropdown.querySelectorAll('.autocomplete-item').forEach(item => {
+                item.addEventListener('click', () => selectItem(item));
+            });
+            
+            dropdown.style.display = 'block';
+        }
+        
+        function hideDropdown() {
+            document.getElementById('autocompleteDropdown').style.display = 'none';
+            selectedIndex = -1;
+        }
+        
+        function updateSelection(items) {
+            items.forEach((item, index) => {
+                item.classList.toggle('selected', index === selectedIndex);
+            });
+        }
+        
+        function selectItem(item) {
+            const patientId = item.dataset.patientId;
+            const patient = patients.find(p => p.patient_id === patientId);
+            
+            document.getElementById('patientSearch').value = patient.name;
+            hideDropdown();
+            
+            renderPatientsList([patient]);
+        }
+        
+        function highlightMatch(text, query) {
+            const regex = new RegExp(`(${query})`, 'gi');
+            return text.replace(regex, '<mark style="background: #ffeb3b; padding: 0;">$1</mark>');
+        }
+        
+        function searchPatients(query) {
+            const filteredPatients = patients.filter(patient => 
+                patient.name.toLowerCase().includes(query.toLowerCase()) ||
+                patient.patient_id.toLowerCase().includes(query.toLowerCase())
+            );
+            
+            renderPatientsList(filteredPatients);
+        }
+
+        async function showPatientDetails(patientId) {
+            currentPatient = patients.find(p => p.patient_id === patientId);
+            if (!currentPatient) return;
+            
+            // Show loading immediately
+            document.getElementById('patients').classList.remove('active');
+            document.getElementById('patient-details').classList.add('active');
+            document.getElementById('patientDetailsContent').innerHTML = '<div style="text-align: center; padding: 50px;">Loading patient details...</div>';
+            
+            // Load patient vitals
+            try {
+                const [vitalsResponse, predResponse] = await Promise.all([
+                    fetch(`${API_BASE_URL}/patients/${patientId}/vitals`),
+                    fetch(`${API_BASE_URL}/patients/${patientId}/predict`, { method: 'POST' })
+                ]);
+                
+                const vitals = await vitalsResponse.json();
+                const prediction = await predResponse.json();
+                
+                patientVitals[patientId] = vitals;
+                currentPatient.prediction = prediction;
+                currentPatient.riskLevel = prediction.risk_level;
+            } catch (error) {
+                console.error('Error loading patient data:', error);
+            }
+
+            const vitals = patientVitals[patientId] && patientVitals[patientId][0] || {};
+            const bradenScore = (vitals.braden_sensory_perception || 0) + 
+                              (vitals.braden_moisture || 0) + 
+                              (vitals.braden_activity || 0) + 
+                              (vitals.braden_mobility || 0) + 
+                              (vitals.braden_nutrition || 0) + 
+                              (vitals.braden_friction_shear || 0);
+            
+            const content = document.getElementById('patientDetailsContent');
+            content.innerHTML = `
+                <h2>${currentPatient.name} - Health Metrics</h2>
+                
+                <div class="metrics-grid">
+                    <div class="metric-card ${bradenScore <= 12 ? 'critical' : bradenScore <= 16 ? 'warning' : ''}">
+                        <div class="metric-value">${bradenScore || 'N/A'}</div>
+                        <div class="metric-label">Braden Score</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">${vitals.daily_weight || 'N/A'}</div>
+                        <div class="metric-label">Weight (kg)</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">${vitals.arterial_blood_pressure_systolic || 'N/A'}</div>
+                        <div class="metric-label">Systolic BP</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">${vitals.glucose_whole_blood || 'N/A'}</div>
+                        <div class="metric-label">Glucose</div>
+                    </div>
+                    <div class="metric-card ${(vitals.arterial_o2_saturation || 100) < 95 ? 'warning' : ''}">
+                        <div class="metric-value">${vitals.arterial_o2_saturation || 'N/A'}%</div>
+                        <div class="metric-label">Oxygen Saturation</div>
+                    </div>
+                    <div class="metric-card ${currentPatient.riskLevel === 'High' ? 'critical' : currentPatient.riskLevel === 'Moderate' ? 'warning' : ''}">
+                        <div class="metric-value">${currentPatient.riskLevel === 'High' ? 'High Severity' : currentPatient.riskLevel === 'Moderate' ? 'Low Severity' : currentPatient.riskLevel || 'Unknown'}</div>
+                        <div class="metric-label">PU Severity Level</div>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <h3>Vital Signs Trend</h3>
+                    <div style="margin-bottom: 15px;">
+                        <label><input type="checkbox" checked onchange="updateChart()" data-field="daily_weight"> Weight</label>
+                        <label><input type="checkbox" checked onchange="updateChart()" data-field="arterial_blood_pressure_systolic"> BP Systolic</label>
+                        <label><input type="checkbox" checked onchange="updateChart()" data-field="arterial_o2_saturation"> O2 Saturation</label>
+                        <label><input type="checkbox" onchange="updateChart()" data-field="glucose_whole_blood"> Glucose</label>
+                        <label><input type="checkbox" onchange="updateChart()" data-field="albumin"> Albumin</label>
+                        <label><input type="checkbox" onchange="updateChart()" data-field="braden_total"> Braden Score</label>
+                    </div>
+                    <canvas id="vitalsChart" width="400" height="200"></canvas>
+                </div>
+
+                <div class="recommendations">
+                    <h3>🔔 Latest Pressure Ulcer Notifications & Recommendations</h3>
+                    ${getRecommendations(currentPatient)}
+                </div>
+            `;
+
+            // Destroy existing chart if it exists
+            if (currentChart) {
+                currentChart.destroy();
+            }
+
+            // Create vital signs chart
+            setTimeout(() => {
+                createVitalsChart();
+            }, 100);
+            
+            // Remove the screen transition that was moved earlier
+            // (it's now handled at the beginning of the function)
+
+            // Switch to patient details screen
+            document.getElementById('patients').classList.remove('active');
+            document.getElementById('patient-details').classList.add('active');
+        }
+
+        function getRecommendations(patient) {
+            const recommendations = {
+                'High': [
+                    'URGENT: Reposition patient every 2 hours to prevent pressure ulcer development',
+                    'Consider pressure redistribution mattress or cushioning devices',
+                    'Perform comprehensive skin assessment twice daily',
+                    'Consult wound care specialist for prevention strategies',
+                    'Monitor nutrition status and ensure adequate protein intake'
+                ],
+                'Medium': [
+                    'Reposition patient every 3-4 hours during bed rest',
+                    'Encourage mobility and range of motion exercises',
+                    'Maintain skin hygiene and moisturization',
+                    'Monitor for early signs of skin breakdown',
+                    'Ensure adequate hydration and nutrition'
+                ],
+                'Low': [
+                    'Continue current mobility and activity level',
+                    'Regular skin inspection during routine care',
+                    'Maintain healthy nutrition and hydration',
+                    'Monitor for any changes in mobility or health status'
+                ]
+            };
+
+            return recommendations[patient.riskLevel].map(rec => 
+                `<div class="recommendation-item">• ${rec}</div>`
+            ).join('');
+        }
+
+        function createVitalsChart() {
+            const allVitals = patientVitals[currentPatient.patient_id] || [];
+            if (allVitals.length === 0) return;
+            
+            // Sort by timestamp and show last 5 data points if available
+            const sortedVitals = allVitals.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            const vitals = sortedVitals.slice(-5);
+            
+            const ctx = document.getElementById('vitalsChart').getContext('2d');
+            
+            // Prepare data from actual vitals
+            const labels = vitals.map(v => new Date(v.timestamp).toLocaleDateString());
+            
+            const datasets = [];
+            const colors = ['#e74c3c', '#3498db', '#f39c12', '#27ae60', '#9b59b6', '#e67e22'];
+            let colorIndex = 0;
+            
+            // Get selected fields
+            const checkboxes = document.querySelectorAll('input[data-field]');
+            checkboxes.forEach(checkbox => {
+                if (checkbox.checked) {
+                    const field = checkbox.dataset.field;
+                    let data, label;
+                    
+                    if (field === 'braden_total') {
+                        data = vitals.map(v => 
+                            (v.braden_sensory_perception || 0) + 
+                            (v.braden_moisture || 0) + 
+                            (v.braden_activity || 0) + 
+                            (v.braden_mobility || 0) + 
+                            (v.braden_nutrition || 0) + 
+                            (v.braden_friction_shear || 0)
+                        );
+                        label = 'Braden Score';
+                    } else {
+                        data = vitals.map(v => v[field] || 0);
+                        label = {
+                            'daily_weight': 'Weight (kg)',
+                            'arterial_blood_pressure_systolic': 'BP Systolic',
+                            'arterial_o2_saturation': 'O2 Saturation (%)',
+                            'glucose_whole_blood': 'Glucose',
+                            'albumin': 'Albumin'
+                        }[field] || field;
+                    }
+                    
+                    datasets.push({
+                        label: label,
+                        data: data,
+                        borderColor: colors[colorIndex % colors.length],
+                        backgroundColor: colors[colorIndex % colors.length] + '20',
+                        tension: 0.4,
+                        fill: false
+                    });
+                    colorIndex++;
+                }
+            });
+
+            currentChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            title: {
+                                display: true,
+                                text: 'Values'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Date'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        }
+                    }
+                }
+            });
+        }
+        
+        function updateChart() {
+            if (currentChart) {
+                currentChart.destroy();
+            }
+            createVitalsChart();
+        }
+
+        const dashboardExpandedSections = {};
+        const dashboardVitalsCache = {};
+        
+        function renderDashboard() {
+            const tbody = document.getElementById('dashboardTableBody');
+            tbody.innerHTML = '';
+            
+            dashboardData.forEach(item => {
+                const patientId = item.patientId;
+                
+                // Main row
+                const row = document.createElement('tr');
+                row.className = 'dashboard-main-row';
+                row.innerHTML = `
+                    <td onclick="toggleDashboardVitals('${patientId}')" style="cursor: pointer;">
+                        <span class="expand-icon" id="dash-icon-${patientId}" style="margin-right: 8px;">▶</span>
+                        <strong>${item.patient}</strong>
+                    </td>
+                    <td><span class="priority-${item.riskLevel.toLowerCase()}">${item.riskLevel === 'High' ? 'High Severity' : item.riskLevel === 'Moderate' ? 'Low Severity' : item.riskLevel}</span></td>
+                    <td><strong>${item.score}%</strong></td>
+                    <td>${item.nextSteps}</td>
+                    <td><span class="status-${item.status}">${item.status.charAt(0).toUpperCase() + item.status.slice(1)}</span></td>
+                    <td>
+                        <button class="action-btn" onclick="showAcknowledgePopup('${item.patientId}', '${item.patient}')">Acknowledge</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+                
+                // Expandable vitals row
+                const vitalsRow = document.createElement('tr');
+                vitalsRow.className = 'dashboard-vitals-row';
+                vitalsRow.id = `dash-vitals-row-${patientId}`;
+                vitalsRow.style.display = 'none';
+                vitalsRow.innerHTML = `
+                    <td colspan="6">
+                        <div class="dashboard-vitals-section" id="dash-vitals-${patientId}">
+                            <div class="vitals-loading">Click above to load vitals...</div>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(vitalsRow);
+            });
+        }
+        
+        async function toggleDashboardVitals(patientId) {
+            const vitalsRow = document.getElementById(`dash-vitals-row-${patientId}`);
+            const vitalsSection = document.getElementById(`dash-vitals-${patientId}`);
+            const icon = document.getElementById(`dash-icon-${patientId}`);
+            
+            if (dashboardExpandedSections[patientId]) {
+                // Collapse
+                vitalsRow.style.display = 'none';
+                icon.textContent = '▶';
+                dashboardExpandedSections[patientId] = false;
+            } else {
+                // Expand
+                dashboardExpandedSections[patientId] = true;
+                vitalsRow.style.display = 'table-row';
+                icon.textContent = '▼';
+                
+                // Load vitals if not already cached
+                if (!dashboardVitalsCache[patientId]) {
+                    // Show table structure immediately
+                    const tableStructure = `
+                        <h4 style="margin: 15px 0;">Vitals History</h4>
+                        <table class="vitals-table" style="margin: 0;">
+                            <thead>
+                                <tr>
+                                    <th>Timestamp</th>
+                                    <th>Weight</th>
+                                    <th>BP Systolic</th>
+                                    <th>O2 Sat</th>
+                                    <th>Glucose</th>
+                                    <th>Braden Score</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="loading-row">
+                                    <td colspan="6">Loading vitals data...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    `;
+                    
+                    vitalsSection.innerHTML = tableStructure;
+                    
+                    try {
+                        const response = await fetch(`${API_BASE_URL}/patients/${patientId}/vitals`);
+                        const vitalsData = await response.json();
+                        
+                        const vitalsRows = vitalsData.map(vital => {
+                            const bradenScore = (vital.braden_sensory_perception || 0) + 
+                                               (vital.braden_moisture || 0) + 
+                                               (vital.braden_activity || 0) + 
+                                               (vital.braden_mobility || 0) + 
+                                               (vital.braden_nutrition || 0) + 
+                                               (vital.braden_friction_shear || 0);
+                            return `
+                                <tr>
+                                    <td>${new Date(vital.timestamp).toLocaleString()}</td>
+                                    <td>${vital.daily_weight || 'N/A'}</td>
+                                    <td>${vital.arterial_blood_pressure_systolic || 'N/A'}</td>
+                                    <td>${vital.arterial_o2_saturation || 'N/A'}%</td>
+                                    <td>${vital.glucose_whole_blood || 'N/A'}</td>
+                                    <td>${vital.albumin || 'N/A'}</td>
+                                    <td>${vital.icu_stay_duration || 'N/A'}</td>
+                                    <td>${bradenScore || 'N/A'}</td>
+                                    <td><span style="color: ${bradenScore <= 12 ? '#e74c3c' : bradenScore <= 16 ? '#f39c12' : '#27ae60'}; font-weight: bold;">${bradenScore <= 12 ? 'High Severity' : bradenScore <= 16 ? 'Low Severity' : 'Low Risk'}</span></td>
+                                </tr>
+                            `;
+                        }).join('');
+                        
+                        // Cache the complete table HTML
+                        dashboardVitalsCache[patientId] = `
+                            <h4 style="margin: 15px 0;">Vitals History</h4>
+                            <div style="margin-bottom: 10px;">
+                                <label><input type="checkbox" checked onchange="toggleColumn(this, 0)"> Timestamp</label>
+                                <label><input type="checkbox" checked onchange="toggleColumn(this, 1)"> Weight</label>
+                                <label><input type="checkbox" checked onchange="toggleColumn(this, 2)"> BP Systolic</label>
+                                <label><input type="checkbox" checked onchange="toggleColumn(this, 3)"> O2 Sat</label>
+                                <label><input type="checkbox" checked onchange="toggleColumn(this, 4)"> Glucose</label>
+                                <label><input type="checkbox" checked onchange="toggleColumn(this, 5)"> Albumin</label>
+                                <label><input type="checkbox" checked onchange="toggleColumn(this, 6)"> ICU Days</label>
+                                <label><input type="checkbox" checked onchange="toggleColumn(this, 7)"> Braden Score</label>
+                            </div>
+                            <table class="vitals-table" style="margin: 0;">
+                                <thead>
+                                    <tr>
+                                        <th>Timestamp</th>
+                                        <th>Weight</th>
+                                        <th>BP Systolic</th>
+                                        <th>O2 Sat</th>
+                                        <th>Glucose</th>
+                                        <th>Albumin</th>
+                                        <th>ICU Days</th>
+                                        <th>Braden Score</th>
+                                        <th>PU Severity</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${vitalsRows}
+                                </tbody>
+                            </table>
+                        `;
+                        
+                        vitalsSection.innerHTML = dashboardVitalsCache[patientId];
+                    } catch (error) {
+                        console.error(`Error loading vitals for ${patientId}:`, error);
+                        vitalsSection.innerHTML = `
+                            <h4 style="margin: 15px 0;">Vitals History</h4>
+                            <table class="vitals-table" style="margin: 0;">
+                                <thead>
+                                    <tr>
+                                        <th>Timestamp</th>
+                                        <th>Weight</th>
+                                        <th>BP Systolic</th>
+                                        <th>O2 Sat</th>
+                                        <th>Glucose</th>
+                                        <th>Braden Score</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="loading-row"><td colspan="6">Error loading vitals</td></tr>
+                                </tbody>
+                            </table>
+                        `;
+                    }
+                } else {
+                    // Use cached data
+                    vitalsSection.innerHTML = dashboardVitalsCache[patientId];
+                }
+            }
+        }
+
+
+
+        async function loadDashboardData() {
+            try {
+                // Show calculating state and clear existing table
+                updateStatsCards('Calculating...', 'Calculating...', 'Calculating...');
+                dashboardData = [];
+                renderDashboard(); // Clear table
+                
+                // Use existing patients data instead of fetching again
+                const patientsData = patients.length > 0 ? patients : await fetch(`${API_BASE_URL}/patients`).then(r => r.json());
+                
+                let highRiskCount = 0;
+                let mediumRiskCount = 0;
+                
+                for (const patient of patientsData) {
+                    // Use existing prediction data if available, otherwise fetch
+                    let riskLevel, predictionScore;
+                    if (patient.riskLevel && patient.riskLevel !== 'Loading...') {
+                        riskLevel = patient.riskLevel;
+                        predictionScore = patient.predictionScore;
+                    } else {
+                        try {
+                            const predResponse = await fetch(`${API_BASE_URL}/patients/${patient.patient_id}/predict`, {
+                                method: 'POST'
+                            });
+                            const prediction = await predResponse.json();
+                            riskLevel = prediction.risk_level;
+                            predictionScore = Math.round(prediction.prediction_score * 100);
+                        } catch (error) {
+                            console.error(`Error getting prediction for ${patient.patient_id}:`, error);
+                            continue;
+                        }
+                    }
+                    
+                    // Count risk levels for stats
+                    if (riskLevel === 'High') highRiskCount++;
+                    if (riskLevel === 'Moderate') mediumRiskCount++;
+                    
+                    // Immediately add Medium and High risk patients to dashboard
+                    if (riskLevel === 'High' || riskLevel === 'Moderate') {
+                        const newPatient = {
+                            patient: `${patient.first_name || patient.name?.split(' ')[0]} ${patient.last_name || patient.name?.split(' ')[1]}`,
+                            patientId: patient.patient_id,
+                            riskLevel: riskLevel,
+                            score: predictionScore,
+                            nextSteps: getNextSteps(riskLevel),
+                            status: 'pending'
+                        };
+                        
+                        dashboardData.push(newPatient);
+                        
+                        // Sort to maintain High Risk first, then Moderate Risk
+                        dashboardData.sort((a, b) => {
+                            if (a.riskLevel === 'High' && b.riskLevel !== 'High') return -1;
+                            if (a.riskLevel !== 'High' && b.riskLevel === 'High') return 1;
+                            if (a.riskLevel === 'Moderate' && b.riskLevel !== 'Moderate') return -1;
+                            if (a.riskLevel !== 'Moderate' && b.riskLevel === 'Moderate') return 1;
+                            return 0;
+                        });
+                        
+                        // Re-render entire dashboard to maintain sort order
+                        renderDashboard();
+                    }
+                    
+                    // Update stats incrementally
+                    updateStatsCards(highRiskCount, mediumRiskCount, highRiskCount + mediumRiskCount, patientsData.length);
+                }
+                
+                // Sort dashboard data: High Risk first, then Moderate Risk
+                dashboardData.sort((a, b) => {
+                    if (a.riskLevel === 'High' && b.riskLevel !== 'High') return -1;
+                    if (a.riskLevel !== 'High' && b.riskLevel === 'High') return 1;
+                    if (a.riskLevel === 'Moderate' && b.riskLevel !== 'Moderate') return -1;
+                    if (a.riskLevel !== 'Moderate' && b.riskLevel === 'Moderate') return 1;
+                    return 0;
+                });
+                renderDashboard();
+                
+                // Final update
+                updateStatsCards(highRiskCount, mediumRiskCount, highRiskCount + mediumRiskCount, patientsData.length);
+            } catch (error) {
+                console.error('Error loading dashboard data:', error);
+            }
+        }
+        
+        function addPatientToDashboard(item) {
+            const tbody = document.getElementById('dashboardTableBody');
+            const patientId = item.patientId;
+            
+            // Main row
+            const row = document.createElement('tr');
+            row.className = 'dashboard-main-row';
+            row.innerHTML = `
+                <td onclick="toggleDashboardVitals('${patientId}')" style="cursor: pointer;">
+                    <span class="expand-icon" id="dash-icon-${patientId}" style="margin-right: 8px;">▶</span>
+                    <strong>${item.patient}</strong>
+                </td>
+                <td><span class="priority-${item.riskLevel.toLowerCase()}">${item.riskLevel}</span></td>
+                <td><strong>${item.score}%</strong></td>
+                <td>${item.nextSteps}</td>
+                <td><span class="status-${item.status}">${item.status.charAt(0).toUpperCase() + item.status.slice(1)}</span></td>
+                <td>
+                    <button class="action-btn" onclick="updateStatus('${item.patient}')">Update</button>
+                </td>
+            `;
+            tbody.appendChild(row);
+            
+            // Expandable vitals row
+            const vitalsRow = document.createElement('tr');
+            vitalsRow.className = 'dashboard-vitals-row';
+            vitalsRow.id = `dash-vitals-row-${patientId}`;
+            vitalsRow.style.display = 'none';
+            vitalsRow.innerHTML = `
+                <td colspan="6">
+                    <div class="dashboard-vitals-section" id="dash-vitals-${patientId}">
+                        <div class="vitals-loading">Click above to load vitals...</div>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(vitalsRow);
+        }
+        
+        function updateStatsCards(highRisk, mediumRisk, activeAlerts = null, totalPatients = null) {
+            const statCards = document.querySelectorAll('.stat-card .metric-value');
+            if (statCards.length >= 4) {
+                statCards[0].textContent = highRisk;
+                statCards[1].textContent = mediumRisk;
+                statCards[2].textContent = activeAlerts !== null ? activeAlerts : (typeof highRisk === 'number' && typeof mediumRisk === 'number' ? highRisk + mediumRisk : 'Calculating...');
+                statCards[3].textContent = totalPatients !== null ? totalPatients : patients.length;
+            }
+        }
+        
+        function getNextSteps(riskLevel) {
+            const steps = {
+                'High': 'URGENT: Reposition every 2 hours, immediate skin assessment',
+                'Moderate': 'Reposition every 3-4 hours, monitor skin condition', 
+                'Low': 'Continue current care, monitor'
+            };
+            return steps[riskLevel] || 'Monitor patient';
+        }
+        
+        function showAcknowledgePopup(patientId, patientName) {
+            const overlay = document.createElement('div');
+            overlay.className = 'acknowledge-overlay';
+            overlay.onclick = closeAcknowledgePopup;
+            
+            const popup = document.createElement('div');
+            popup.className = 'acknowledge-popup';
+            popup.innerHTML = `
+                <h3>Acknowledge Action for ${patientName}</h3>
+                <select id="actionType">
+                    <option value="reposition">Reposition</option>
+                    <option value="skin_assessment">Skin Assessment</option>
+                    <option value="activity_1">Activity 1</option>
+                    <option value="activity_2">Activity 2</option>
+                    <option value="other">Other</option>
+                </select>
+                <textarea id="actionNotes" placeholder="Additional notes (optional)"></textarea>
+                <div class="acknowledge-buttons">
+                    <button class="cancel-btn" onclick="closeAcknowledgePopup()">Cancel</button>
+                    <button class="save-btn" onclick="saveAcknowledgment('${patientId}')">Save</button>
+                </div>
+            `;
+            
+            document.body.appendChild(overlay);
+            document.body.appendChild(popup);
+        }
+        
+        function closeAcknowledgePopup() {
+            const overlay = document.querySelector('.acknowledge-overlay');
+            const popup = document.querySelector('.acknowledge-popup');
+            if (overlay) overlay.remove();
+            if (popup) popup.remove();
+        }
+        
+        async function saveAcknowledgment(patientId) {
+            const actionType = document.getElementById('actionType').value;
+            const actionNotes = document.getElementById('actionNotes').value;
+            
+            try {
+                await fetch(`${API_BASE_URL}/patients/${patientId}/actions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        action_taken: actionType,
+                        notes: actionNotes,
+                        staff_id: 'nurse123'
+                    })
+                });
+                
+                closeAcknowledgePopup();
+                showNotification('✅ Action acknowledged successfully!');
+                loadDashboardData(); // Refresh dashboard
+            } catch (error) {
+                console.error('Error recording acknowledgment:', error);
+                showNotification('❌ Error recording acknowledgment', true);
+            }
+        }
+        
+        function showNotification(message, isError = false) {
+            // Remove existing notification if any
+            const existing = document.querySelector('.notification-toast');
+            if (existing) {
+                existing.remove();
+            }
+            
+            const toast = document.createElement('div');
+            toast.className = `notification-toast ${isError ? 'error' : ''}`;
+            toast.innerHTML = `
+                <span>${message}</span>
+                <button class="close-btn" onclick="this.parentElement.remove()">&times;</button>
+            `;
+            
+            document.body.appendChild(toast);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                if (toast.parentElement) {
+                    toast.remove();
+                }
+            }, 5000);
+        }
+        
+        async function generateNewVitals() {
+            const btn = document.getElementById('generateBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳';
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/generate-vitals`, {
+                    method: 'POST'
+                });
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showNotification(`✅ ${result.message}`);
+                    // Clear vitals cache to force reload of fresh data
+                    Object.keys(vitalsCache).forEach(key => delete vitalsCache[key]);
+                    Object.keys(dashboardVitalsCache).forEach(key => delete dashboardVitalsCache[key]);
+                    // Refresh dashboard data
+                    await loadDashboardData();
+                } else {
+                    showNotification(`❌ Error: ${result.error}`, true);
+                }
+            } catch (error) {
+                console.error('Error generating vitals:', error);
+                showNotification('❌ Error generating vitals', true);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '+';
+            }
+        }
+        
+        function toggleColumn(checkbox, columnIndex) {
+            const table = checkbox.closest('div').nextElementSibling;
+            const isVisible = checkbox.checked;
+            
+            // Toggle header
+            const headerCell = table.querySelector(`thead tr th:nth-child(${columnIndex + 1})`);
+            if (headerCell) {
+                headerCell.style.display = isVisible ? '' : 'none';
+            }
+            
+            // Toggle all body cells in this column
+            const bodyCells = table.querySelectorAll(`tbody tr td:nth-child(${columnIndex + 1})`);
+            bodyCells.forEach(cell => {
+                cell.style.display = isVisible ? '' : 'none';
+            });
+        }
+        
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', async function() {
+            await loadPatients();
+            await loadDashboardData();
+            initializeSearch();
+        });
+    </script>
+</body>
+</html>

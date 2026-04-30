@@ -9,7 +9,7 @@ Author: Eric Vin
 import pickle
 
 from pimap import pimaputilities as pu
-from sentineltoolkit.sentinel_analysis import analyze_sample_discrete_heatmap
+from sentineltoolkit.sentinel_analysis import analyze_sample_discrete_heatmap, analyze_sample_continuous_heatmap, analyze_sample_triangle_heatmap
 
 class PimapAnalyzeHeatmap:
   """ Converts a calibrated sentinel bandage scan into a heatmap. """
@@ -27,6 +27,8 @@ class PimapAnalyzeHeatmap:
 
       sensor_data = pickle.loads(pickled_scan)
 
+      print("Sample Timestamp: ", pu.get_timestamp(pimap_sample))
+
       # Discrete analysis shows each connection as its own block on the heatmap
       if self.analysis_type == 0:
           heatmap_data = analyze_sample_discrete_heatmap(sensor_data, self.frequency)
@@ -34,6 +36,8 @@ class PimapAnalyzeHeatmap:
       # heatmap
       elif self.analysis_type == 1:
           heatmap_data = analyze_sample_continuous_heatmap(sensor_data, self.frequency)
+      elif self.analysis_type == 2:
+          heatmap_data = analyze_sample_triangle_heatmap(sensor_data, self.frequency)
       else:
           assert False
 

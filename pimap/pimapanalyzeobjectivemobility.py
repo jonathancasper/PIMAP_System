@@ -233,30 +233,30 @@ class PimapAnalyzeObjectiveMobility:
       # Calculate the movements_per_min when we have saved more xy_gradient
       # metrics by patient and device than the movements_per_min_period.
       movements_per_min_pimap_metrics = []
-      for pid, did in self.saved_gradient_pmetrics_by_id:
-        saved_gradients = self.saved_gradient_pmetrics_by_id[(pid, did)]
-        while len(saved_gradients) >= self.movements_per_min_period:
-          saved_gradients = saved_gradients[:self.movements_per_min_period]
-          timestamps = list(map(lambda x: float(pu.get_timestamp(x)),
-                              saved_gradients))
-          elapsed_time = timestamps[-1] - timestamps[0]
-          gradient_metrics = list(map(lambda x: ast.literal_eval(pu.get_metric(x)),
-                                      saved_gradients))
-          xy_gradient = list(map(lambda x: x["xy_gradient"], gradient_metrics))
-          movements_per_min = 60.0*np.sum(np.array(xy_gradient) > 2)/elapsed_time
-          movements_per_min_metric = {}
-          movements_per_min_metric["movements_per_min"] = movements_per_min
-          timestamp = np.mean(timestamps)
-          # Create a temporary PIMAP sample that will be used to create the
-          # movements_per_min PIMAP metric. The relevant features are the patient_id,
-          # device_id, and timestamp.
-          temp_pimap_sample = pu.create_pimap_sample("temp", pid, did, "temp", timestamp)
-          new_pimap_metric = pu.create_pimap_metric(self.metric_type, temp_pimap_sample,
-                                                    movements_per_min_metric)
-          movements_per_min_pimap_metrics.append(new_pimap_metric)
-          # Remove 1 saved gradient PIMAP metrics as we are using a sliding window.
-          del self.saved_gradient_pmetrics_by_id[(pid, did)][0]
-          saved_gradients = self.saved_gradient_pmetrics_by_id[(pid, did)]
+      #for pid, did in self.saved_gradient_pmetrics_by_id:
+      #  saved_gradients = self.saved_gradient_pmetrics_by_id[(pid, did)]
+      #  while len(saved_gradients) >= self.movements_per_min_period:
+      #    saved_gradients = saved_gradients[:self.movements_per_min_period]
+      #    timestamps = list(map(lambda x: float(pu.get_timestamp(x)),
+      #                        saved_gradients))
+      #    elapsed_time = timestamps[-1] - timestamps[0]
+      #    gradient_metrics = list(map(lambda x: ast.literal_eval(pu.get_metric(x)),
+      #                                saved_gradients))
+      #    xy_gradient = list(map(lambda x: x["xy_gradient"], gradient_metrics))
+      #    movements_per_min = 60.0*np.sum(np.array(xy_gradient) > 2)/elapsed_time
+      #    movements_per_min_metric = {}
+      #    movements_per_min_metric["movements_per_min"] = movements_per_min
+      #    timestamp = np.mean(timestamps)
+      #    # Create a temporary PIMAP sample that will be used to create the
+      #    # movements_per_min PIMAP metric. The relevant features are the patient_id,
+      #    # device_id, and timestamp.
+      #    temp_pimap_sample = pu.create_pimap_sample("temp", pid, did, "temp", timestamp)
+      #    new_pimap_metric = pu.create_pimap_metric(self.metric_type, temp_pimap_sample,
+      #                                              movements_per_min_metric)
+      #    movements_per_min_pimap_metrics.append(new_pimap_metric)
+      #    # Remove 1 saved gradient PIMAP metrics as we are using a sliding window.
+      #    del self.saved_gradient_pmetrics_by_id[(pid, did)][0]
+      #    saved_gradients = self.saved_gradient_pmetrics_by_id[(pid, did)]
 
       # Calculate the time to analyze and adjust the aggregation limit as necessary.
       time_to_analyze = time.time() - start_time_to_analyze
