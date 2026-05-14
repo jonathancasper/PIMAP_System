@@ -922,13 +922,11 @@
                     patients[i].predictionScore = Math.round(prediction.prediction_score * 100);
                     
                     // Update UI incrementally for both views
-                    renderPatients();
                     renderPatientsList();
                 } catch (error) {
                     console.error(`Error getting prediction for ${patients[i].patient_id}:`, error);
                     patients[i].riskLevel = 'Unknown';
                     // Update UI even on error
-                    renderPatients();
                     renderPatientsList();
                 }
             }
