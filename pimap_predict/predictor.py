@@ -211,16 +211,21 @@ class MockPredictor(Predictor):
         - High risk: ≤ 12
         - Moderate risk: 13-16
         - Low risk: > 16
+
+        NOTE: This method expects NORMALIZED features from FeatureExtractor.
+        The Braden subscales are normalized to [0,1] range by FeatureExtractor:
+        - friction_shear divided by 3.0
+        - all other subscales divided by 4.0
+        
+        We denormalize by multiplying back before summing to get raw Braden scores.
         """
-        braden_total = sum(
-            [
-                features.get("braden_sensory_perception", 3),
-                features.get("braden_moisture", 3),
-                features.get("braden_activity", 2),
-                features.get("braden_mobility", 2),
-                features.get("braden_nutrition", 3),
-                features.get("braden_friction_shear", 2),
-            ]
+        braden_total = (
+            round(features.get("braden_sensory_perception", 0.75) * 4) +
+            round(features.get("braden_moisture", 0.75) * 4) +
+            round(features.get("braden_activity", 0.5) * 4) +
+            round(features.get("braden_mobility", 0.5) * 4) +
+            round(features.get("braden_nutrition", 0.75) * 4) +
+            round(features.get("braden_friction_shear", 0.67) * 3)
         )
 
         if braden_total <= 12:

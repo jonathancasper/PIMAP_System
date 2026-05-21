@@ -377,41 +377,6 @@
             width: 100%;
         }
 
-        .generate-btn {
-            position: fixed;
-            bottom: 30px;
-            right: 30px;
-            background: linear-gradient(135deg, #00b894 0%, #00a085 100%);
-            color: white;
-            border: none;
-            padding: 15px;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 1.2rem;
-            font-weight: bold;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(0, 184, 148, 0.3);
-            z-index: 1000;
-            width: 60px;
-            height: 60px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .generate-btn:hover {
-            background: linear-gradient(135deg, #00a085 0%, #00b894 100%);
-            transform: translateY(-2px) scale(1.1);
-            box-shadow: 0 6px 20px rgba(0, 184, 148, 0.4);
-        }
-
-        .generate-btn:disabled {
-            background: #95a5a6;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-
         .search-container {
             position: relative;
             display: flex;
@@ -850,8 +815,6 @@
             </table>
         </div>
     </div>
-
-    <button class="generate-btn" id="generateBtn" onclick="generateNewVitals()">+</button>
 
     <script>
         // API Configuration
@@ -1901,36 +1864,6 @@
                     toast.remove();
                 }
             }, 5000);
-        }
-        
-        async function generateNewVitals() {
-            const btn = document.getElementById('generateBtn');
-            btn.disabled = true;
-            btn.textContent = '⏳';
-            
-            try {
-                const response = await fetch(`${API_BASE_URL}/generate-vitals`, {
-                    method: 'POST'
-                });
-                const result = await response.json();
-                
-                if (response.ok) {
-                    showNotification(`✅ ${result.message}`);
-                    // Clear vitals cache to force reload of fresh data
-                    Object.keys(vitalsCache).forEach(key => delete vitalsCache[key]);
-                    Object.keys(dashboardVitalsCache).forEach(key => delete dashboardVitalsCache[key]);
-                    // Refresh dashboard data
-                    await loadDashboardData();
-                } else {
-                    showNotification(`❌ Error: ${result.error}`, true);
-                }
-            } catch (error) {
-                console.error('Error generating vitals:', error);
-                showNotification('❌ Error generating vitals', true);
-            } finally {
-                btn.disabled = false;
-                btn.textContent = '+';
-            }
         }
         
         function toggleColumn(checkbox, columnIndex) {
