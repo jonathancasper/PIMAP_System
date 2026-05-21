@@ -48,13 +48,19 @@ pimap_dashboard/
   frontend/
     index.html            - Dashboard HTML
 
-deployment/
-  Deployment configurations.
-  
-  aws/
-    template.yaml         - AWS SAM template for Lambda deployment
+ deployment/
+   Deployment configurations.
+   
+   aws/
+     template.yaml         - AWS SAM template for Lambda deployment
 
-tests/
+ scripts/
+   Utility scripts.
+   
+   test_epic_auth.py       - Diagnose Epic FHIR authentication issues
+   test_epic_patients.py   - Diagnose Epic patients endpoint issues
+
+ tests/
   Unit tests for all modules.
   
   testpimaputilities.py
@@ -91,9 +97,56 @@ PREREQUISITES
    - Client ID: Set EPIC_CLIENT_ID environment variable
    - Private key: Set EPIC_PRIVATE_KEY or EPIC_PRIVATE_KEY_PATH
 
-================================================================================
-LOCAL DEVELOPMENT (Demo Sandbox)
-================================================================================
+ ================================================================================
+ TROUBLESHOOTING EPIC AUTHENTICATION
+ ================================================================================
+
+If Epic authentication fails in deployment (commonly shows "invalid_client" error),
+use the diagnostic script to identify the issue:
+
+  python3 scripts/test_epic_auth.py
+
+This will show:
+- Where client ID and private key are loaded from
+- Configuration fingerprint for comparing environments
+- JWKS URL accessibility
+- Token request results
+- Test FHIR API call (if auth succeeds)
+
+Options:
+  --verbose          Show JWT payload, headers, and full request/response
+  --dry-run          Build JWT but don't send to Epic
+  --fingerprint-only Output only config hash for comparison
+
+Example usage:
+  # Basic diagnostic
+  python3 scripts/test_epic_auth.py
+
+  # Compare configuration between environments
+  # Run on local machine:
+  python3 scripts/test_epic_auth.py --fingerprint-only > local_fingerprint.txt
+  # Run on production server:
+  python3 scripts/test_epic_auth.py --fingerprint-only > prod_fingerprint.txt
+  # Compare:
+  diff local_fingerprint.txt prod_fingerprint.txt
+
+  # Verbose debugging
+  python3 scripts/test_epic_auth.py --verbose
+
+ Common issues:
+ - Missing EPIC_CLIENT_ID or EPIC_PRIVATE_KEY_PATH environment variables
+ - Invalid private key (not RS384 format)
+ - JWKS URL not publicly accessible
+ - Client ID doesn't match the public key registered with Epic
+
+If authentication works but the patients endpoint fails:
+  python3 scripts/test_epic_patients.py
+
+This tests the same call the dashboard makes to fetch patients.
+
+ ================================================================================
+ LOCAL DEVELOPMENT (Demo Sandbox)
+ ================================================================================
 
 The demo uses Epic's public FHIR sandbox with synthetic patient data.
 

@@ -957,10 +957,10 @@
                             <div class="patient-meta">ID: ${patient.patient_id}</div>
                             <div class="patient-meta">Age: ${patient.age}</div>
                             <div class="patient-meta">Gender: ${patient.gender}</div>
-                            <div class="patient-meta">Height: ${patient.height_ft || 'N/A'}' ${patient.height_in || 0}"</div>
-                            <div class="patient-meta">Location: Floor ${patient.floor || 'N/A'}, Room ${patient.room || 'N/A'}</div>
-                            <div class="patient-meta">Ethnicity: ${patient.ethnicity}</div>
-                            <div class="patient-meta">Admitted: ${new Date(patient.admission_time).toLocaleDateString()}</div>
+                            <div class="patient-meta">Height: ${patient.height_cm ? `${Math.floor(patient.height_cm / 2.54 / 12)}' ${Math.round((patient.height_cm / 2.54) % 12)}"` : 'N/A'}</div>
+                            <div class="patient-meta">Location: ${patient.floor ? `Floor ${patient.floor}` : 'Floor N/A'}${patient.room ? `, Room ${patient.room}` : ', Room N/A'}</div>
+                            <div class="patient-meta">Ethnicity: ${patient.ethnicity || 'Unknown'}${patient.race && patient.race !== patient.ethnicity ? ` (${patient.race})` : ''}</div>
+                            <div class="patient-meta">Admitted: ${patient.admission_time ? new Date(patient.admission_time).toLocaleDateString() : 'N/A'}</div>
                             <span class="risk-badge" style="background: ${getRiskColor(patient.riskLevel)}; color: white; padding: 4px 8px; border-radius: 4px;">${patient.riskLevel === 'High' ? 'High Severity' : patient.riskLevel === 'Moderate' ? 'Low Severity' : patient.riskLevel}</span>
                         </div>
                     </div>

@@ -204,7 +204,7 @@ class TestFeatureExtractor(unittest.TestCase):
         }
 
         vector = self.extractor.to_vector(features)
-        self.assertEqual(len(vector), 14)
+        self.assertEqual(len(vector), 15)
 
     def test_custom_config(self):
         """Test feature extractor with custom configuration."""

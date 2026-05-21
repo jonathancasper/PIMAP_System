@@ -14,6 +14,7 @@ class FeatureConfig:
 
     icu_duration_max_days: float = 30.0
     weight_max_kg: float = 200.0
+    height_max_cm: float = 250.0
     bp_systolic_max: float = 200.0
     o2_sat_max: float = 100.0
     glucose_max: float = 300.0
@@ -37,6 +38,7 @@ FEATURE_NAMES = [
     "total_bilirubin",
     "total_protein",
     "daily_weight",
+    "height_cm",
 ]
 
 
@@ -108,6 +110,9 @@ class FeatureExtractor:
             ),
             "daily_weight": self._normalize(
                 vitals_record.get("daily_weight", 70), self.config.weight_max_kg
+            ),
+            "height_cm": self._normalize(
+                vitals_record.get("height_cm", 170), self.config.height_max_cm
             ),
         }
 

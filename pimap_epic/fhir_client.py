@@ -19,6 +19,7 @@ LOINC_DIASTOLIC = "8462-4"
 LOINC_BODY_WEIGHT = "29463-7"
 LOINC_O2_SAT = "2708-6"
 LOINC_HEIGHT = "8302-2"
+LOINC_HEIGHT_CM = "8302-2"
 LOINC_GLUCOSE = "2345-7"
 LOINC_ALBUMIN = "1751-7"
 LOINC_TOTAL_BILIRUBIN = "1975-2"
@@ -117,7 +118,25 @@ class EpicFHIRClient:
         """Fetch all sandbox patients and transform to dashboard format."""
         ids = patient_ids or SANDBOX_PATIENT_IDS
         entries = self.search_patients(patient_ids=ids, count=len(ids) + 10)
-        return [self._transform_patient(e["resource"]) for e in entries]
+        patients = []
+        for e in entries:
+            patient = self._transform_patient(e["resource"])
+            patient_id = patient["patient_id"]
+            try:
+                height_entries = self.get_height(patient_id, count=5)
+                height_data = self._extract_height(height_entries)
+                patient.update(height_data)
+            except FHIRRequestError:
+                pass
+            try:
+                encounter = self.get_patient_encounter(patient_id)
+                if encounter:
+                    encounter_data = self._extract_encounter(encounter)
+                    patient.update(encounter_data)
+            except FHIRRequestError:
+                pass
+            patients.append(patient)
+        return patients
 
     def _transform_patient(self, resource):
         """Transform a FHIR Patient resource to the dashboard's expected format."""
@@ -157,17 +176,110 @@ class EpicFHIRClient:
             "dob": resource.get("birthDate", ""),
             "gender": gender,
             "ethnicity": display_ethnicity,
+            "race": race,
             "admission_time": "",
             "height": 0,
+            "height_cm": 0,
             "height_ft": 0,
             "height_in": 0,
-            "floor": 0,
+            "floor": "",
             "room": "",
+            "bed": "",
             "fracture_diagnosis": False,
             "diarrhea_diagnosis": False,
             "spinal_cord_injury_diagnosis": False,
             "data_source": "epic_fhir",
         }
+
+    def _extract_height(self, height_entries):
+        """Extract height from observation entries, handling both metric and imperial.
+        
+        FHIR height observations may have:
+        - valueQuantity.value in cm (most common)
+        - valueQuantity.value in [in_i] (inches)
+        - Sometimes both are provided as separate observations
+        
+        Returns dict with height_cm, height, height_ft, height_in.
+        """
+        result = {"height_cm": 0, "height": 0, "height_ft": 0, "height_in": 0}
+        if not height_entries:
+            return result
+        
+        for entry in height_entries:
+            obs = entry.get("resource", {})
+            val = obs.get("valueQuantity", {})
+            value = val.get("value")
+            unit = val.get("unit", "").lower()
+            code = val.get("code", "").lower()
+            system = val.get("system", "")
+            
+            if value is None:
+                continue
+            
+            height_cm = None
+            try:
+                if "cm" in unit or "centimeter" in unit or code == "cm":
+                    height_cm = float(value)
+                elif "in" in unit or "inch" in unit or code in ("in_i", "[in_i]"):
+                    height_cm = float(value) * 2.54
+                elif "m" in unit and "cm" not in unit:
+                    height_cm = float(value) * 100
+                elif value > 100:
+                    height_cm = float(value)
+                elif value > 0:
+                    height_cm = float(value)
+                
+                if height_cm and height_cm > result["height_cm"]:
+                    result["height_cm"] = height_cm
+                    result["height"] = height_cm
+                    total_inches = height_cm / 2.54
+                    result["height_ft"] = int(total_inches // 12)
+                    result["height_in"] = round(total_inches % 12, 1)
+            except (ValueError, TypeError):
+                continue
+        
+        return result
+
+    def _extract_encounter(self, encounter_resource):
+        """Extract admission time and location from Encounter resource.
+        
+        Returns dict with admission_time, floor, room, bed.
+        """
+        result = {"admission_time": "", "floor": "", "room": "", "bed": ""}
+        if not encounter_resource:
+            return result
+        
+        period = encounter_resource.get("period", {})
+        start = period.get("start", "")
+        if start:
+            result["admission_time"] = start
+        
+        locations = encounter_resource.get("location", [])
+        if locations:
+            loc = locations[0]
+            loc_ref = loc.get("location", {})
+            loc_display = loc_ref.get("display", "")
+            
+            if loc_display:
+                parts = loc_display.split(",")
+                if len(parts) >= 1:
+                    room_info = parts[0].strip()
+                    room_parts = room_info.split()
+                    for i, part in enumerate(room_parts):
+                        if part.lower() == "floor" and i + 1 < len(room_parts):
+                            result["floor"] = room_parts[i + 1]
+                        elif part.lower().startswith("room"):
+                            result["room"] = part
+                        elif part.lower().startswith("bed"):
+                            result["bed"] = part
+                if len(parts) >= 2:
+                    result["room"] = parts[1].strip()
+            else:
+                ref = loc_ref.get("reference", "")
+                if "/" in ref:
+                    result["room"] = ref.split("/")[-1]
+        
+        return result
 
     def _get_observations(self, patient_id, code=None, last_n_days=None, count=100):
         """Fetch Observation resources, optionally filtered by LOINC code and date."""
@@ -211,6 +323,27 @@ class EpicFHIRClient:
         return self._get_observations(
             patient_id, LOINC_TOTAL_PROTEIN, last_n_days, count
         )
+
+    def get_height(self, patient_id, last_n_days=None, count=10):
+        """Fetch height observations. Returns list of entries."""
+        return self._get_observations(patient_id, LOINC_HEIGHT, last_n_days, count)
+
+    def get_patient_encounter(self, patient_id):
+        """Fetch the most recent Encounter for admission/location info."""
+        try:
+            bundle = self.get(
+                "Encounter", params={"patient": patient_id, "_sort": "-date", "_count": 1}
+            )
+        except FHIRRequestError:
+            return None
+        entries = [
+            e
+            for e in bundle.get("entry", [])
+            if e.get("resource", {}).get("resourceType") == "Encounter"
+        ]
+        if entries:
+            return entries[0].get("resource", {})
+        return None
 
     def get_patient_vitals(self, patient_id, max_records=20):
         """Fetch all available vitals from Epic, combine into dashboard-format records.
