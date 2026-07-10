@@ -7,6 +7,13 @@ Parameters:
     Type: String
     Description: Epic FHIR OAuth client ID
     NoEcho: true
+  DataSource:
+    Type: String
+    Description: Data source for patient data
+    Default: epic
+    AllowedValues:
+      - epic
+      - mimic
 
 Globals:
   Function:
@@ -16,6 +23,8 @@ Globals:
       Variables:
         VITALS_TABLE: !Ref VitalsTable
         EPIC_CLIENT_ID: !Ref EpicClientId
+        DATA_SOURCE: !Ref DataSource
+        MIMIC_DATA_PATH: /var/task/data/mimic_demo
 
 Resources:
   VitalsTable:

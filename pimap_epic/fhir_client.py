@@ -244,6 +244,14 @@ class EpicFHIRClient:
         """Extract admission time and location from Encounter resource.
         
         Returns dict with admission_time, floor, room, bed.
+        
+        Uses physicalType to identify location types:
+        - "bd" = Bed
+        - "ro" = Room  
+        - "wi" = Ward (used as floor)
+        - "bu" = Building
+        
+        Falls back to parsing display string for legacy compatibility.
         """
         result = {"admission_time": "", "floor": "", "room": "", "bed": ""}
         if not encounter_resource:
@@ -255,11 +263,24 @@ class EpicFHIRClient:
             result["admission_time"] = start
         
         locations = encounter_resource.get("location", [])
-        if locations:
-            loc = locations[0]
+        for loc in locations:
             loc_ref = loc.get("location", {})
             loc_display = loc_ref.get("display", "")
             
+            physical_type = loc.get("physicalType", {})
+            type_codings = physical_type.get("coding", [])
+            type_code = type_codings[0].get("code", "") if type_codings else ""
+            
+            if type_code == "bd":
+                result["bed"] = loc_display
+            elif type_code == "ro":
+                result["room"] = loc_display
+            elif type_code == "wi":
+                result["floor"] = loc_display
+        
+        if not result["floor"] and not result["room"] and not result["bed"] and locations:
+            loc_ref = locations[0].get("location", {})
+            loc_display = loc_ref.get("display", "")
             if loc_display:
                 parts = loc_display.split(",")
                 if len(parts) >= 1:

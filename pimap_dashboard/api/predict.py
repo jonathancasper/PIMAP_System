@@ -9,20 +9,11 @@ sys.path.insert(
     0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 )
 
-from pimap_epic import EpicAuth, EpicFHIRClient
+from .data_source import get_data_source
 from pimap_predict import FeatureExtractor, get_predictor
 
-_fhir_client = None
 _predictor = None
 _feature_extractor = None
-
-
-def _get_client():
-    global _fhir_client
-    if _fhir_client is None:
-        auth = EpicAuth()
-        _fhir_client = EpicFHIRClient(auth)
-    return _fhir_client
 
 
 def _get_predictor():
@@ -49,8 +40,8 @@ def predict_pressure_ulcer(event, context):
     try:
         patient_id = event["pathParameters"]["patient_id"]
 
-        client = _get_client()
-        vitals = client.get_patient_vitals(patient_id, max_records=1)
+        data_source = get_data_source()
+        vitals = data_source.get_vitals(patient_id, max_records=1)
 
         if not vitals:
             return {
@@ -64,6 +55,8 @@ def predict_pressure_ulcer(event, context):
 
         predictor = _get_predictor()
         result = predictor.predict(patient_id, features)
+
+        data_source_name = "mimic_iv" if os.environ.get("DATA_SOURCE") == "mimic" else "epic_fhir"
 
         return {
             "statusCode": 200,
@@ -79,7 +72,7 @@ def predict_pressure_ulcer(event, context):
                     "confidence": result.confidence,
                     "timestamp": result.timestamp.isoformat(),
                     "model_version": result.model_version,
-                    "data_source": "epic_fhir",
+                    "data_source": data_source_name,
                     "imputed_fields": result.imputed_features,
                 }
             ),

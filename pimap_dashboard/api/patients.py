@@ -8,27 +8,17 @@ sys.path.insert(
     0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 )
 
-from pimap_epic import EpicAuth, EpicFHIRClient
-
-_fhir_client = None
-
-
-def _get_client():
-    global _fhir_client
-    if _fhir_client is None:
-        auth = EpicAuth()
-        _fhir_client = EpicFHIRClient(auth)
-    return _fhir_client
+from .data_source import get_data_source
 
 
 def get_patients(event, context):
     """Lambda handler: GET /patients
 
-    Returns list of all patients from Epic FHIR.
+    Returns list of all patients from the configured data source.
     """
     try:
-        client = _get_client()
-        patients = client.get_all_dashboard_patients()
+        data_source = get_data_source()
+        patients = data_source.get_patients()
 
         return {
             "statusCode": 200,
