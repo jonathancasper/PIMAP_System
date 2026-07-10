@@ -8,6 +8,56 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 
+BRADEN_FIELDS = [
+    "braden_sensory_perception",
+    "braden_moisture",
+    "braden_activity",
+    "braden_mobility",
+    "braden_nutrition",
+    "braden_friction_shear",
+]
+
+
+def forward_fill_braden(
+    records: List[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    """Forward-fill Braden subscale values from recent records.
+
+    Given time-sorted records (newest first), produce a single record
+    where each null Braden field is replaced with the most recent
+    non-null value from earlier records.
+
+    Returns None if no Braden data exists across all records.
+    Fields that were forward-filled are tracked in _imputed_fields.
+    """
+    if not records:
+        return None
+
+    enriched = dict(records[0])
+
+    has_any_braden = False
+    for field in BRADEN_FIELDS:
+        if enriched.get(field) is not None:
+            has_any_braden = True
+            continue
+        for record in records[1:]:
+            if record.get(field) is not None:
+                enriched[field] = record[field]
+                has_any_braden = True
+                break
+
+    if not has_any_braden:
+        return None
+
+    imputed = list(enriched.get("_imputed_fields", []))
+    for field in BRADEN_FIELDS:
+        if enriched.get(field) is not None and records[0].get(field) is None:
+            imputed.append(field)
+    enriched["_imputed_fields"] = imputed
+
+    return enriched
+
+
 @dataclass
 class FeatureConfig:
     """Configuration for feature extraction."""
