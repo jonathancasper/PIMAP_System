@@ -7,12 +7,14 @@ Provides ML-based pressure ulcer risk prediction using:
 """
 
 from .predictor import Predictor, XGBoostPredictor, MockPredictor, get_predictor
-from .feature_extractor import FeatureExtractor
+from .feature_extractor import FeatureExtractor, forward_fill_braden, BRADEN_FIELDS
 
 __all__ = [
     "Predictor",
     "XGBoostPredictor",
     "MockPredictor",
     "FeatureExtractor",
-    "get_predictor"
+    "get_predictor",
+    "forward_fill_braden",
+    "BRADEN_FIELDS",
 ]
