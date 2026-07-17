@@ -1006,7 +1006,14 @@
                     
                     try {
                         const response = await fetch(`${API_BASE_URL}/patients/${patientId}/vitals`);
-                        const vitalsData = await response.json();
+                        const data = await response.json();
+                        const vitalsData = data.vitals || [];
+                        const predictions = data.predictions || [];
+                        
+                        const predByTimestamp = {};
+                        for (const p of predictions) {
+                            predByTimestamp[p.timestamp] = p;
+                        }
                         
                         const vitalsRows = vitalsData.map(vital => {
                             const bradenScore = (vital.braden_sensory_perception || 0) + 
@@ -1015,6 +1022,10 @@
                                                (vital.braden_mobility || 0) + 
                                                (vital.braden_nutrition || 0) + 
                                                (vital.braden_friction_shear || 0);
+                            const pred = predByTimestamp[vital.timestamp];
+                            const riskDisplay = pred ? 
+                                `<span style="color: ${getRiskColor(pred.risk_level)}; font-weight: bold;">${pred.risk_level === 'High' ? 'High Severity' : pred.risk_level === 'Moderate' ? 'Low Severity' : pred.risk_level === 'Low' ? 'Low Risk' : pred.risk_level}</span>` :
+                                '<span style="color: #95a5a6;">No prediction</span>';
                             return `
                                 <tr>
                                     <td>${new Date(vital.timestamp).toLocaleString()}</td>
@@ -1025,14 +1036,13 @@
                                     <td>${vital.albumin || 'N/A'}</td>
                                     <td>${vital.icu_stay_duration || 'N/A'}</td>
                                     <td>${bradenScore || 'N/A'}</td>
-                                    <td><span style="color: ${bradenScore <= 12 ? '#e74c3c' : bradenScore <= 16 ? '#f39c12' : '#27ae60'}; font-weight: bold;">${bradenScore <= 12 ? 'High Severity' : bradenScore <= 16 ? 'Low Severity' : 'Low Risk'}</span></td>
+                                    <td>${riskDisplay}</td>
                                 </tr>
                             `;
                         }).join('');
                         
                         // Cache the complete table HTML
                         vitalsCache[patientId] = `
-                            <h4 style="margin-bottom: 15px;">Vitals History <span class="chart-icon" onclick="showPatientDetails('${patientId}')" style="margin-left: 10px; cursor: pointer; color: #3498db;">📊</span></h4>
                             <div style="margin-bottom: 10px;">
                                 <label><input type="checkbox" checked onchange="toggleColumn(this, 0)"> Timestamp</label>
                                 <label><input type="checkbox" checked onchange="toggleColumn(this, 1)"> Weight</label>
@@ -1251,10 +1261,10 @@
                     fetch(`${API_BASE_URL}/patients/${patientId}/predict`, { method: 'POST' })
                 ]);
                 
-                const vitals = await vitalsResponse.json();
+                const vitalsData = await vitalsResponse.json();
                 const prediction = await predResponse.json();
                 
-                patientVitals[patientId] = vitals;
+                patientVitals[patientId] = vitalsData.vitals || [];
                 currentPatient.prediction = prediction;
                 currentPatient.riskLevel = prediction.risk_level;
             } catch (error) {
@@ -1554,7 +1564,14 @@
                     
                     try {
                         const response = await fetch(`${API_BASE_URL}/patients/${patientId}/vitals`);
-                        const vitalsData = await response.json();
+                        const data = await response.json();
+                        const vitalsData = data.vitals || [];
+                        const predictions = data.predictions || [];
+                        
+                        const predByTimestamp = {};
+                        for (const p of predictions) {
+                            predByTimestamp[p.timestamp] = p;
+                        }
                         
                         const vitalsRows = vitalsData.map(vital => {
                             const bradenScore = (vital.braden_sensory_perception || 0) + 
@@ -1563,6 +1580,10 @@
                                                (vital.braden_mobility || 0) + 
                                                (vital.braden_nutrition || 0) + 
                                                (vital.braden_friction_shear || 0);
+                            const pred = predByTimestamp[vital.timestamp];
+                            const riskDisplay = pred ? 
+                                `<span style="color: ${getRiskColor(pred.risk_level)}; font-weight: bold;">${pred.risk_level === 'High' ? 'High Severity' : pred.risk_level === 'Moderate' ? 'Low Severity' : pred.risk_level === 'Low' ? 'Low Risk' : pred.risk_level}</span>` :
+                                '<span style="color: #95a5a6;">No prediction</span>';
                             return `
                                 <tr>
                                     <td>${new Date(vital.timestamp).toLocaleString()}</td>
@@ -1573,7 +1594,7 @@
                                     <td>${vital.albumin || 'N/A'}</td>
                                     <td>${vital.icu_stay_duration || 'N/A'}</td>
                                     <td>${bradenScore || 'N/A'}</td>
-                                    <td><span style="color: ${bradenScore <= 12 ? '#e74c3c' : bradenScore <= 16 ? '#f39c12' : '#27ae60'}; font-weight: bold;">${bradenScore <= 12 ? 'High Severity' : bradenScore <= 16 ? 'Low Severity' : 'Low Risk'}</span></td>
+                                    <td>${riskDisplay}</td>
                                 </tr>
                             `;
                         }).join('');

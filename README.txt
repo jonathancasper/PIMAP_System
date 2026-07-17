@@ -72,10 +72,27 @@ pimap_dashboard/
   testpimapepic.py        - Tests for Epic integration
   testpimappredict.py     - Tests for prediction module
 
-examples/
-  Example scripts demonstrating PIMAP usage.
+ examples/
+   Example scripts demonstrating PIMAP usage.
 
-requirements.txt
+data/
+  Demo and curated data files.
+  
+  mimic_demo/
+    MIMIC-IV demo data for local testing (DATA_SOURCE=mimic)
+    
+    patients_curated.json    - Patient list
+    vitals_curated.json.gz   - Time-series vitals records
+    predictions_curated.json - Stored prediction history (MIMIC only;
+                               Epic path returns empty list as stub)
+    
+    Vitals records contain:
+    - Braden subscale scores (sparse, often null)
+    - Vital signs (SpO2, BP, heart rate, temp)
+    - Lab values (glucose, albumin, bilirubin, etc.)
+    - ICU stay metadata (stay_id, duration)
+
+ requirements.txt
   Python dependencies. Install with:
     pip install -r requirements.txt
 
@@ -144,34 +161,56 @@ If authentication works but the patients endpoint fails:
 
 This tests the same call the dashboard makes to fetch patients.
 
- ================================================================================
- LOCAL DEVELOPMENT (Demo Sandbox)
- ================================================================================
+================================================================================
+LOCAL DEVELOPMENT (Demo Sandbox)
+================================================================================
 
-The demo uses Epic's public FHIR sandbox with synthetic patient data.
+The demo can use either Epic's public FHIR sandbox or MIMIC-IV demo data.
 
-1. Install dependencies:
-   pip install -r requirements.txt
+Using MIMIC-IV Demo Data (recommended for local testing):
+  1. Install dependencies:
+     pip install -r requirements.txt
 
-2. Set up Epic credentials:
-   export EPIC_CLIENT_ID="your-client-id"
-   export EPIC_PRIVATE_KEY_PATH="/path/to/privatekey.pem"
-   
-   Or store client ID in:
-   ~/.config/epic_fhir/client_id
+  2. Set data source:
+     export DATA_SOURCE=mimic
 
-3. Run tests:
-   PYTHONPATH=. python3 tests/testpimapepic.py
-   PYTHONPATH=. python3 tests/testpimappredict.py
+  3. Run tests:
+     PYTHONPATH=. python3 tests/testpimappredict.py
 
-4. Start local API (requires SAM CLI):
-   cd deployment/aws
-   sam build
-   sam local start-api
+  4. Start local API (requires SAM CLI):
+     cd deployment/aws
+     sam build
+     sam local start-api
 
-5. Open dashboard:
-   Open pimap_dashboard/frontend/index.html in a browser
-   (Update API_URL in the HTML to point to your local endpoint)
+  5. Open dashboard:
+     Open pimap_dashboard/frontend/index.html in a browser
+
+Using Epic FHIR Sandbox:
+  1. Install dependencies:
+     pip install -r requirements.txt
+
+  2. Set up Epic credentials:
+     export EPIC_CLIENT_ID="your-client-id"
+     export EPIC_PRIVATE_KEY_PATH="/path/to/privatekey.pem"
+     
+     Or store client ID in:
+     ~/.config/epic_fhir/client_id
+
+  3. Set data source:
+     export DATA_SOURCE=epic
+
+  4. Run tests:
+     PYTHONPATH=. python3 tests/testpimapepic.py
+     PYTHONPATH=. python3 tests/testpimappredict.py
+
+  5. Start local API (requires SAM CLI):
+     cd deployment/aws
+     sam build
+     sam local start-api
+
+  6. Open dashboard:
+     Open pimap_dashboard/frontend/index.html in a browser
+     (Update API_URL in the HTML to point to your local endpoint)
 
 ================================================================================
 AWS DEPLOYMENT
@@ -200,8 +239,14 @@ AWS DEPLOYMENT
 ENVIRONMENT VARIABLES
 ================================================================================
 
+DATA_SOURCE
+  Data source for patient data (default: 'epic')
+  Valid values:
+    - 'epic': Epic FHIR API (requires Epic credentials)
+    - 'mimic': MIMIC-IV demo data from data/mimic_demo/
+
 EPIC_CLIENT_ID
-  Epic FHIR OAuth client ID (required for Epic integration)
+  Epic FHIR OAuth client ID (required for DATA_SOURCE=epic)
 
 EPIC_PRIVATE_KEY
   Private key content as PEM string (for Lambda deployment)
@@ -209,9 +254,17 @@ EPIC_PRIVATE_KEY
 EPIC_PRIVATE_KEY_PATH
   Path to private key file (alternative to EPIC_PRIVATE_KEY)
 
+MIMIC_DATA_PATH
+  Path to MIMIC demo data directory (optional, defaults to data/mimic_demo/)
+
 XGBOOST_MODEL_PATH
   Path to trained XGBoost model file (optional)
   If not set, uses MockPredictor with Braden heuristic
+
+PREDICTION_LOOKBACK_DAYS
+  Days of historical data to consider for predictions (default: 7)
+  Used to find most recent Braden assessment and will be used by
+  XGBoost predictor for computing feature trends.
 
 VITALS_TABLE
   DynamoDB table name for staff actions (default: patient_vitals)
@@ -229,16 +282,28 @@ GET /patients/{patient_id}/vitals
 POST /patients/{patient_id}/predict
   Generate pressure ulcer risk prediction
   
+  The prediction endpoint fetches vitals records from the past
+  PREDICTION_LOOKBACK_DAYS (default 7) and uses the most recent
+  non-null values for Braden subscale fields. If no Braden
+  assessment exists within the lookback window, returns "NoData".
+  
   Response:
   {
     "patient_id": "string",
     "prediction_score": 0.75,
-    "risk_level": "High|Moderate|Low",
+    "risk_level": "High|Moderate|Low|NoData",
     "confidence": 0.8,
     "timestamp": "2024-01-15T10:00:00Z",
     "model_version": "string",
-    "imputed_fields": ["albumin", "icu_stay_duration"]
+    "imputed_fields": ["braden_sensory_perception"],
+    "message": "Optional message for NoData case"
   }
+  
+  Risk levels:
+  - High: Braden total <= 12 (90% risk score)
+  - Moderate: Braden total 13-16 (60% risk score)
+  - Low: Braden total > 16 (20% risk score)
+  - NoData: No Braden assessment within lookback window (gray state)
 
 POST /patients/{patient_id}/actions
   Record a staff action for a patient
@@ -271,14 +336,23 @@ MockPredictor (default)
   Uses Braden Scale heuristic for risk assessment.
   No training required. Suitable for demos and testing.
   
+  Braden data handling:
+  - Fetches records from PREDICTION_LOOKBACK_DAYS (default 7)
+  - Forward-fills null Braden subscales from most recent non-null values
+  - Returns "NoData" risk level if no Braden assessment exists
+  
   Risk levels:
   - High: Braden total <= 12 (90% risk)
   - Moderate: Braden total 13-16 (60% risk)
   - Low: Braden total > 16 (20% risk)
+  - NoData: No Braden assessment within lookback window
 
 XGBoostPredictor
   Uses externally trained XGBoost model.
   Requires model file and xgboost package.
+  
+  Will use same lookback window for historical features
+  (trends, most recent values, etc.)
   
   To use:
   1. Train model and save to file

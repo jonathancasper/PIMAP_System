@@ -24,6 +24,10 @@ class DataSource(Protocol):
     def get_vitals(self, patient_id: str, max_records: int = 20) -> List[Dict[str, Any]]:
         """Return vitals history for a specific patient."""
         ...
+    
+    def get_predictions(self, patient_id: str) -> List[Dict[str, Any]]:
+        """Return stored predictions for a specific patient."""
+        ...
 
 
 class EpicDataSource:
@@ -38,6 +42,9 @@ class EpicDataSource:
     
     def get_vitals(self, patient_id: str, max_records: int = 20) -> List[Dict[str, Any]]:
         return self._client.get_patient_vitals(patient_id, max_records=max_records)
+    
+    def get_predictions(self, patient_id: str) -> List[Dict[str, Any]]:
+        return []
 
 
 class MimicDataSource:
@@ -48,6 +55,8 @@ class MimicDataSource:
         self._patients: Optional[List[Dict]] = None
         self._vitals: Optional[List[Dict]] = None
         self._vitals_by_patient: Optional[Dict[str, List[Dict]]] = None
+        self._predictions: Optional[List[Dict]] = None
+        self._predictions_by_patient: Optional[Dict[str, List[Dict]]] = None
     
     def _default_data_path(self) -> Path:
         """Return default path to MIMIC demo data."""
@@ -65,9 +74,38 @@ class MimicDataSource:
         """Load vitals from curated gzipped JSON file."""
         if self._vitals is None:
             vitals_path = self.data_path / "vitals_curated.json.gz"
-            with gzip.open(vitals_path, 'rt') as f:
-                self._vitals = json.load(f)
+            if not vitals_path.exists():
+                vitals_path = self.data_path / "new_vitals_curated.json"
+            if vitals_path.suffix == ".gz":
+                with gzip.open(vitals_path, 'rt') as f:
+                    self._vitals = json.load(f)
+            else:
+                with open(vitals_path) as f:
+                    self._vitals = json.load(f)
         return self._vitals
+    
+    def _load_predictions(self) -> List[Dict[str, Any]]:
+        """Load predictions from curated JSON file."""
+        if self._predictions is None:
+            pred_path = self.data_path / "predictions_curated.json"
+            if pred_path.exists():
+                with open(pred_path) as f:
+                    self._predictions = json.load(f)
+            else:
+                self._predictions = []
+        return self._predictions
+    
+    def _build_predictions_index(self) -> Dict[str, List[Dict[str, Any]]]:
+        """Build index of predictions by patient ID."""
+        if self._predictions_by_patient is None:
+            predictions = self._load_predictions()
+            self._predictions_by_patient = {}
+            for record in predictions:
+                patient_id = record.get('patient_id')
+                if patient_id not in self._predictions_by_patient:
+                    self._predictions_by_patient[patient_id] = []
+                self._predictions_by_patient[patient_id].append(record)
+        return self._predictions_by_patient
     
     def _build_vitals_index(self) -> Dict[str, List[Dict[str, Any]]]:
         """Build index of vitals by patient ID."""
@@ -106,6 +144,11 @@ class MimicDataSource:
             mapped_vitals.append(mapped)
         
         return mapped_vitals
+    
+    def get_predictions(self, patient_id: str) -> List[Dict[str, Any]]:
+        """Return stored predictions for a specific patient."""
+        index = self._build_predictions_index()
+        return index.get(str(patient_id), [])
     
     def _map_fields(self, record: Dict[str, Any]) -> Dict[str, Any]:
         """Map MIMIC field names to match FeatureExtractor expectations."""
