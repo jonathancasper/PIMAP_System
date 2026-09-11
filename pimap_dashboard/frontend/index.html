@@ -782,11 +782,11 @@
             <div class="stats-overview">
                 <div class="stat-card danger">
                     <div class="metric-value">0</div>
-                    <div class="metric-label">High Severity Patients</div>
+                    <div class="metric-label">High Risk Patients</div>
                 </div>
                 <div class="stat-card warning">
                     <div class="metric-value">0</div>
-                    <div class="metric-label">Low Severity Patients</div>
+                    <div class="metric-label">Moderate Risk Patients</div>
                 </div>
                 <div class="stat-card">
                     <div class="metric-value">0</div>
@@ -802,7 +802,7 @@
                 <thead>
                     <tr>
                         <th>Patient</th>
-                        <th>Severity Level</th>
+                        <th>PU Risk</th>
                         <th>Prediction Score</th>
                         <th>Next Steps</th>
                         <th>Status</th>
@@ -867,14 +867,14 @@
                 // Render immediately
                 renderPatientsList();
                 
-                // Load severity levels asynchronously
-                loadSeverityLevels();
+                // Load risk levels asynchronously
+                loadRiskLevels();
             } catch (error) {
                 console.error('Error loading patients:', error);
             }
         }
         
-        async function loadSeverityLevels() {
+        async function loadRiskLevels() {
             for (let i = 0; i < patients.length; i++) {
                 try {
                     const predResponse = await fetch(`${API_BASE_URL}/patients/${patients[i].patient_id}/predict`, {
@@ -924,7 +924,7 @@
                             <div class="patient-meta">Location: ${patient.floor ? `Floor ${patient.floor}` : 'Floor N/A'}${patient.room ? `, Room ${patient.room}` : ', Room N/A'}</div>
                             <div class="patient-meta">Ethnicity: ${patient.ethnicity || 'Unknown'}${patient.race && patient.race !== patient.ethnicity ? ` (${patient.race})` : ''}</div>
                             <div class="patient-meta">Admitted: ${patient.admission_time ? new Date(patient.admission_time).toLocaleDateString() : 'N/A'}</div>
-                            <span class="risk-badge" style="background: ${getRiskColor(patient.riskLevel)}; color: white; padding: 4px 8px; border-radius: 4px;">${patient.riskLevel === 'High' ? 'High Severity' : patient.riskLevel === 'Moderate' ? 'Low Severity' : patient.riskLevel}</span>
+                            <span class="risk-badge" style="background: ${getRiskColor(patient.riskLevel)}; color: white; padding: 4px 8px; border-radius: 4px;">${patient.riskLevel}</span>
                         </div>
                     </div>
                     <div class="vitals-section" id="vitals-${patient.patient_id}">
@@ -954,6 +954,8 @@
                 case 'High': return '#e74c3c';
                 case 'Moderate': return '#f39c12';
                 case 'Low': return '#27ae60';
+                case 'NoData': return '#7f8c8d';
+                case 'Unknown': return '#95a5a6';
                 default: return '#95a5a6';
             }
         }
@@ -1024,7 +1026,7 @@
                                                (vital.braden_friction_shear || 0);
                             const pred = predByTimestamp[vital.timestamp];
                             const riskDisplay = pred ? 
-                                `<span style="color: ${getRiskColor(pred.risk_level)}; font-weight: bold;">${pred.risk_level === 'High' ? 'High Severity' : pred.risk_level === 'Moderate' ? 'Low Severity' : pred.risk_level === 'Low' ? 'Low Risk' : pred.risk_level}</span>` :
+                                `<span style="color: ${getRiskColor(pred.risk_level)}; font-weight: bold;">${pred.risk_level}</span>` :
                                 '<span style="color: #95a5a6;">No prediction</span>';
                             return `
                                 <tr>
@@ -1052,7 +1054,7 @@
                                 <label><input type="checkbox" checked onchange="toggleColumn(this, 5)"> Albumin</label>
                                 <label><input type="checkbox" checked onchange="toggleColumn(this, 6)"> ICU Days</label>
                                 <label><input type="checkbox" checked onchange="toggleColumn(this, 7)"> Braden Score</label>
-                                <label><input type="checkbox" checked onchange="toggleColumn(this, 8)"> PU Severity</label>
+                                <label><input type="checkbox" checked onchange="toggleColumn(this, 8)"> PU Risk</label>
                             </div>
                             <table class="vitals-table">
                                 <thead>
@@ -1065,7 +1067,7 @@
                                         <th>Albumin</th>
                                         <th>ICU Days</th>
                                         <th>Braden Score</th>
-                                        <th>PU Severity</th>
+                                        <th>PU Risk</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1305,8 +1307,8 @@
                         <div class="metric-label">Oxygen Saturation</div>
                     </div>
                     <div class="metric-card ${currentPatient.riskLevel === 'High' ? 'critical' : currentPatient.riskLevel === 'Moderate' ? 'warning' : ''}">
-                        <div class="metric-value">${currentPatient.riskLevel === 'High' ? 'High Severity' : currentPatient.riskLevel === 'Moderate' ? 'Low Severity' : currentPatient.riskLevel || 'Unknown'}</div>
-                        <div class="metric-label">PU Severity Level</div>
+                        <div class="metric-value">${currentPatient.riskLevel || 'Unknown'}</div>
+                        <div class="metric-label">PU Risk Level</div>
                     </div>
                 </div>
 
@@ -1494,7 +1496,7 @@
                         <span class="expand-icon" id="dash-icon-${patientId}" style="margin-right: 8px;">▶</span>
                         <strong>${item.patient}</strong>
                     </td>
-                    <td><span class="priority-${item.riskLevel.toLowerCase()}">${item.riskLevel === 'High' ? 'High Severity' : item.riskLevel === 'Moderate' ? 'Low Severity' : item.riskLevel}</span></td>
+                <td><span class="priority-${item.riskLevel ? item.riskLevel.toLowerCase() : 'unknown'}">${item.riskLevel || 'Unknown'}</span></td>
                     <td><strong>${item.score}%</strong></td>
                     <td>${item.nextSteps}</td>
                     <td><span class="status-${item.status}">${item.status.charAt(0).toUpperCase() + item.status.slice(1)}</span></td>
@@ -1582,7 +1584,7 @@
                                                (vital.braden_friction_shear || 0);
                             const pred = predByTimestamp[vital.timestamp];
                             const riskDisplay = pred ? 
-                                `<span style="color: ${getRiskColor(pred.risk_level)}; font-weight: bold;">${pred.risk_level === 'High' ? 'High Severity' : pred.risk_level === 'Moderate' ? 'Low Severity' : pred.risk_level === 'Low' ? 'Low Risk' : pred.risk_level}</span>` :
+                                `<span style="color: ${getRiskColor(pred.risk_level)}; font-weight: bold;">${pred.risk_level}</span>` :
                                 '<span style="color: #95a5a6;">No prediction</span>';
                             return `
                                 <tr>
@@ -1623,7 +1625,7 @@
                                         <th>Albumin</th>
                                         <th>ICU Days</th>
                                         <th>Braden Score</th>
-                                        <th>PU Severity</th>
+                                        <th>PU Risk</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1700,43 +1702,39 @@
                     if (riskLevel === 'High') highRiskCount++;
                     if (riskLevel === 'Moderate') mediumRiskCount++;
                     
-                    // Immediately add Medium and High risk patients to dashboard
-                    if (riskLevel === 'High' || riskLevel === 'Moderate') {
-                        const newPatient = {
-                            patient: `${patient.first_name || patient.name?.split(' ')[0]} ${patient.last_name || patient.name?.split(' ')[1]}`,
-                            patientId: patient.patient_id,
-                            riskLevel: riskLevel,
-                            score: predictionScore,
-                            nextSteps: getNextSteps(riskLevel),
-                            status: 'pending'
-                        };
-                        
-                        dashboardData.push(newPatient);
-                        
-                        // Sort to maintain High Risk first, then Moderate Risk
-                        dashboardData.sort((a, b) => {
-                            if (a.riskLevel === 'High' && b.riskLevel !== 'High') return -1;
-                            if (a.riskLevel !== 'High' && b.riskLevel === 'High') return 1;
-                            if (a.riskLevel === 'Moderate' && b.riskLevel !== 'Moderate') return -1;
-                            if (a.riskLevel !== 'Moderate' && b.riskLevel === 'Moderate') return 1;
-                            return 0;
-                        });
-                        
-                        // Re-render entire dashboard to maintain sort order
-                        renderDashboard();
-                    }
+                    // Add all patients to dashboard (High, Moderate, Low, Unknown/NoData)
+                    const newPatient = {
+                        patient: `${patient.first_name || patient.name?.split(' ')[0]} ${patient.last_name || patient.name?.split(' ')[1]}`,
+                        patientId: patient.patient_id,
+                        riskLevel: riskLevel || 'Unknown',
+                        score: predictionScore,
+                        nextSteps: getNextSteps(riskLevel),
+                        status: 'pending'
+                    };
+                    
+                    dashboardData.push(newPatient);
+                    
+                    // Sort to maintain High first, then Moderate, then Low, then Unknown/NoData
+                    dashboardData.sort((a, b) => {
+                        const priority = { 'High': 0, 'Moderate': 1, 'Low': 2 };
+                        const aPriority = priority[a.riskLevel] ?? 3;
+                        const bPriority = priority[b.riskLevel] ?? 3;
+                        return aPriority - bPriority;
+                    });
+                    
+                    // Re-render entire dashboard to maintain sort order
+                    renderDashboard();
                     
                     // Update stats incrementally
                     updateStatsCards(highRiskCount, mediumRiskCount, highRiskCount + mediumRiskCount, patientsData.length);
                 }
                 
-                // Sort dashboard data: High Risk first, then Moderate Risk
+                // Sort dashboard data: High first, then Moderate, then Low, then Unknown/NoData
                 dashboardData.sort((a, b) => {
-                    if (a.riskLevel === 'High' && b.riskLevel !== 'High') return -1;
-                    if (a.riskLevel !== 'High' && b.riskLevel === 'High') return 1;
-                    if (a.riskLevel === 'Moderate' && b.riskLevel !== 'Moderate') return -1;
-                    if (a.riskLevel !== 'Moderate' && b.riskLevel === 'Moderate') return 1;
-                    return 0;
+                    const priority = { 'High': 0, 'Moderate': 1, 'Low': 2 };
+                    const aPriority = priority[a.riskLevel] ?? 3;
+                    const bPriority = priority[b.riskLevel] ?? 3;
+                    return aPriority - bPriority;
                 });
                 renderDashboard();
                 
