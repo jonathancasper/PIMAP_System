@@ -16,7 +16,8 @@
     "fracture_diagnosis": false,
     "diarrhea_diagnosis": false,
     "spinal_cord_injury_diagnosis": false,
-    "data_source": "mimic_iv"
+    "data_source": "mimic_iv",
+    "smoker_any": false
   },
   {
     "patient_id": "10020187",
@@ -35,7 +36,8 @@
     "fracture_diagnosis": false,
     "diarrhea_diagnosis": false,
     "spinal_cord_injury_diagnosis": false,
-    "data_source": "mimic_iv"
+    "data_source": "mimic_iv",
+    "smoker_any": false
   },
   {
     "patient_id": "10012853",
@@ -54,7 +56,8 @@
     "fracture_diagnosis": false,
     "diarrhea_diagnosis": false,
     "spinal_cord_injury_diagnosis": false,
-    "data_source": "mimic_iv"
+    "data_source": "mimic_iv",
+    "smoker_any": true
   },
   {
     "patient_id": "10039708",
@@ -73,7 +76,28 @@
     "fracture_diagnosis": false,
     "diarrhea_diagnosis": false,
     "spinal_cord_injury_diagnosis": false,
-    "data_source": "mimic_iv"
+    "data_source": "mimic_iv",
+    "smoker_any": true
+  },
+  {
+    "patient_id": "10010867",
+    "first_name": "Patient",
+    "last_name": "10010867",
+    "dob": "2119-01-01",
+    "gender": "F",
+    "ethnicity": "WHITE - BRAZILIAN",
+    "height": 170.18,
+    "height_cm": 170.18,
+    "height_ft": 5,
+    "height_in": 7.0,
+    "floor": "Trauma SICU (TSICU)",
+    "room": "ICU-0770",
+    "bed": "A",
+    "fracture_diagnosis": true,
+    "diarrhea_diagnosis": false,
+    "spinal_cord_injury_diagnosis": false,
+    "data_source": "mimic_iv",
+    "smoker_any": false
   },
   {
     "patient_id": "10021487",
@@ -92,7 +116,8 @@
     "fracture_diagnosis": true,
     "diarrhea_diagnosis": false,
     "spinal_cord_injury_diagnosis": false,
-    "data_source": "mimic_iv"
+    "data_source": "mimic_iv",
+    "smoker_any": false
   },
   {
     "patient_id": "10026354",
@@ -111,7 +136,8 @@
     "fracture_diagnosis": true,
     "diarrhea_diagnosis": false,
     "spinal_cord_injury_diagnosis": false,
-    "data_source": "mimic_iv"
+    "data_source": "mimic_iv",
+    "smoker_any": false
   },
   {
     "patient_id": "10015931",
@@ -130,7 +156,48 @@
     "fracture_diagnosis": false,
     "diarrhea_diagnosis": false,
     "spinal_cord_injury_diagnosis": false,
-    "data_source": "mimic_iv"
+    "data_source": "mimic_iv",
+    "smoker_any": false
+  },
+  {
+    "patient_id": "10003400",
+    "first_name": "Patient",
+    "last_name": "10003400",
+    "dob": "2062-01-01",
+    "gender": "F",
+    "ethnicity": "BLACK/AFRICAN AMERICAN",
+    "height": 160.02,
+    "height_cm": 160.02,
+    "height_ft": 5,
+    "height_in": 3.0,
+    "floor": "Coronary Care Unit (CCU)",
+    "room": "ICU-3343",
+    "bed": "A",
+    "fracture_diagnosis": false,
+    "diarrhea_diagnosis": false,
+    "spinal_cord_injury_diagnosis": false,
+    "data_source": "mimic_iv",
+    "smoker_any": false
+  },
+  {
+    "patient_id": "10004235",
+    "first_name": "Patient",
+    "last_name": "10004235",
+    "dob": "2149-01-01",
+    "gender": "M",
+    "ethnicity": "BLACK/CAPE VERDEAN",
+    "height": 182.88,
+    "height_cm": 182.88,
+    "height_ft": 6,
+    "height_in": 0.0,
+    "floor": "Coronary Care Unit (CCU)",
+    "room": "ICU-0191",
+    "bed": "A",
+    "fracture_diagnosis": false,
+    "diarrhea_diagnosis": false,
+    "spinal_cord_injury_diagnosis": false,
+    "data_source": "mimic_iv",
+    "smoker_any": false
   },
   {
     "patient_id": "10002930",
@@ -149,7 +216,48 @@
     "fracture_diagnosis": false,
     "diarrhea_diagnosis": false,
     "spinal_cord_injury_diagnosis": false,
-    "data_source": "mimic_iv"
+    "data_source": "mimic_iv",
+    "smoker_any": true
+  },
+  {
+    "patient_id": "10002428",
+    "first_name": "Patient",
+    "last_name": "10002428",
+    "dob": "2075-01-01",
+    "gender": "F",
+    "ethnicity": "WHITE",
+    "height": 147.32,
+    "height_cm": 147.32,
+    "height_ft": 4,
+    "height_in": 10.0,
+    "floor": "Medical Intensive Care Unit (MICU)",
+    "room": "ICU-7493",
+    "bed": "A",
+    "fracture_diagnosis": false,
+    "diarrhea_diagnosis": false,
+    "spinal_cord_injury_diagnosis": false,
+    "data_source": "mimic_iv",
+    "smoker_any": false
+  },
+  {
+    "patient_id": "10002428",
+    "first_name": "Patient",
+    "last_name": "10002428",
+    "dob": "2075-01-01",
+    "gender": "F",
+    "ethnicity": "WHITE",
+    "height": 147.32,
+    "height_cm": 147.32,
+    "height_ft": 4,
+    "height_in": 10.0,
+    "floor": "Medical Intensive Care Unit (MICU)",
+    "room": "ICU-5437",
+    "bed": "A",
+    "fracture_diagnosis": false,
+    "diarrhea_diagnosis": false,
+    "spinal_cord_injury_diagnosis": false,
+    "data_source": "mimic_iv",
+    "smoker_any": false
   },
   {
     "patient_id": "10006053",
@@ -168,7 +276,8 @@
     "fracture_diagnosis": false,
     "diarrhea_diagnosis": false,
     "spinal_cord_injury_diagnosis": false,
-    "data_source": "mimic_iv"
+    "data_source": "mimic_iv",
+    "smoker_any": false
   },
   {
     "patient_id": "10006053",
@@ -187,7 +296,8 @@
     "fracture_diagnosis": false,
     "diarrhea_diagnosis": false,
     "spinal_cord_injury_diagnosis": false,
-    "data_source": "mimic_iv"
+    "data_source": "mimic_iv",
+    "smoker_any": false
   },
   {
     "patient_id": "10007818",
@@ -206,7 +316,28 @@
     "fracture_diagnosis": false,
     "diarrhea_diagnosis": false,
     "spinal_cord_injury_diagnosis": false,
-    "data_source": "mimic_iv"
+    "data_source": "mimic_iv",
+    "smoker_any": false
+  },
+  {
+    "patient_id": "10002428",
+    "first_name": "Patient",
+    "last_name": "10002428",
+    "dob": "2075-01-01",
+    "gender": "F",
+    "ethnicity": "WHITE",
+    "height": 147.32,
+    "height_cm": 147.32,
+    "height_ft": 4,
+    "height_in": 10.0,
+    "floor": "Medical Intensive Care Unit (MICU)",
+    "room": "ICU-7268",
+    "bed": "A",
+    "fracture_diagnosis": false,
+    "diarrhea_diagnosis": false,
+    "spinal_cord_injury_diagnosis": false,
+    "data_source": "mimic_iv",
+    "smoker_any": false
   },
   {
     "patient_id": "10015931",
@@ -225,7 +356,8 @@
     "fracture_diagnosis": false,
     "diarrhea_diagnosis": false,
     "spinal_cord_injury_diagnosis": false,
-    "data_source": "mimic_iv"
+    "data_source": "mimic_iv",
+    "smoker_any": false
   },
   {
     "patient_id": "10029484",
@@ -244,7 +376,8 @@
     "fracture_diagnosis": false,
     "diarrhea_diagnosis": false,
     "spinal_cord_injury_diagnosis": false,
-    "data_source": "mimic_iv"
+    "data_source": "mimic_iv",
+    "smoker_any": false
   },
   {
     "patient_id": "10038081",
@@ -263,7 +396,28 @@
     "fracture_diagnosis": false,
     "diarrhea_diagnosis": false,
     "spinal_cord_injury_diagnosis": false,
-    "data_source": "mimic_iv"
+    "data_source": "mimic_iv",
+    "smoker_any": false
+  },
+  {
+    "patient_id": "10002428",
+    "first_name": "Patient",
+    "last_name": "10002428",
+    "dob": "2075-01-01",
+    "gender": "F",
+    "ethnicity": "WHITE",
+    "height": 147.32,
+    "height_cm": 147.32,
+    "height_ft": 4,
+    "height_in": 10.0,
+    "floor": "Surgical Intensive Care Unit (SICU)",
+    "room": "ICU-9615",
+    "bed": "A",
+    "fracture_diagnosis": false,
+    "diarrhea_diagnosis": false,
+    "spinal_cord_injury_diagnosis": false,
+    "data_source": "mimic_iv",
+    "smoker_any": false
   },
   {
     "patient_id": "10021487",
@@ -282,7 +436,8 @@
     "fracture_diagnosis": false,
     "diarrhea_diagnosis": false,
     "spinal_cord_injury_diagnosis": false,
-    "data_source": "mimic_iv"
+    "data_source": "mimic_iv",
+    "smoker_any": false
   },
   {
     "patient_id": "10039708",
@@ -301,7 +456,8 @@
     "fracture_diagnosis": false,
     "diarrhea_diagnosis": false,
     "spinal_cord_injury_diagnosis": false,
-    "data_source": "mimic_iv"
+    "data_source": "mimic_iv",
+    "smoker_any": true
   },
   {
     "patient_id": "10031757",
@@ -320,7 +476,28 @@
     "fracture_diagnosis": false,
     "diarrhea_diagnosis": false,
     "spinal_cord_injury_diagnosis": false,
-    "data_source": "mimic_iv"
+    "data_source": "mimic_iv",
+    "smoker_any": true
+  },
+  {
+    "patient_id": "10040025",
+    "first_name": "Patient",
+    "last_name": "10040025",
+    "dob": "2079-01-01",
+    "gender": "F",
+    "ethnicity": "WHITE",
+    "height": 167.64000000000001,
+    "height_cm": 167.64000000000001,
+    "height_ft": 5,
+    "height_in": 6.0,
+    "floor": "Surgical Intensive Care Unit (SICU)",
+    "room": "ICU-7367",
+    "bed": "A",
+    "fracture_diagnosis": false,
+    "diarrhea_diagnosis": false,
+    "spinal_cord_injury_diagnosis": false,
+    "data_source": "mimic_iv",
+    "smoker_any": true
   },
   {
     "patient_id": "10022880",
@@ -339,7 +516,8 @@
     "fracture_diagnosis": false,
     "diarrhea_diagnosis": false,
     "spinal_cord_injury_diagnosis": false,
-    "data_source": "mimic_iv"
+    "data_source": "mimic_iv",
+    "smoker_any": false
   },
   {
     "patient_id": "10031757",
@@ -358,7 +536,8 @@
     "fracture_diagnosis": false,
     "diarrhea_diagnosis": false,
     "spinal_cord_injury_diagnosis": false,
-    "data_source": "mimic_iv"
+    "data_source": "mimic_iv",
+    "smoker_any": true
   },
   {
     "patient_id": "10013049",
@@ -377,7 +556,8 @@
     "fracture_diagnosis": false,
     "diarrhea_diagnosis": false,
     "spinal_cord_injury_diagnosis": false,
-    "data_source": "mimic_iv"
+    "data_source": "mimic_iv",
+    "smoker_any": false
   },
   {
     "patient_id": "10009049",
@@ -396,7 +576,8 @@
     "fracture_diagnosis": false,
     "diarrhea_diagnosis": false,
     "spinal_cord_injury_diagnosis": false,
-    "data_source": "mimic_iv"
+    "data_source": "mimic_iv",
+    "smoker_any": false
   },
   {
     "patient_id": "10005817",
@@ -415,7 +596,8 @@
     "fracture_diagnosis": false,
     "diarrhea_diagnosis": false,
     "spinal_cord_injury_diagnosis": false,
-    "data_source": "mimic_iv"
+    "data_source": "mimic_iv",
+    "smoker_any": true
   },
   {
     "patient_id": "10005817",
@@ -434,7 +616,28 @@
     "fracture_diagnosis": false,
     "diarrhea_diagnosis": false,
     "spinal_cord_injury_diagnosis": false,
-    "data_source": "mimic_iv"
+    "data_source": "mimic_iv",
+    "smoker_any": true
+  },
+  {
+    "patient_id": "10019003",
+    "first_name": "Patient",
+    "last_name": "10019003",
+    "dob": "2083-01-01",
+    "gender": "F",
+    "ethnicity": "WHITE",
+    "height": 157.48,
+    "height_cm": 157.48,
+    "height_ft": 5,
+    "height_in": 2.0,
+    "floor": "Medical/Surgical Intensive Care Unit (MICU/SICU)",
+    "room": "ICU-7647",
+    "bed": "A",
+    "fracture_diagnosis": false,
+    "diarrhea_diagnosis": false,
+    "spinal_cord_injury_diagnosis": false,
+    "data_source": "mimic_iv",
+    "smoker_any": true
   },
   {
     "patient_id": "10039708",
@@ -453,7 +656,8 @@
     "fracture_diagnosis": false,
     "diarrhea_diagnosis": false,
     "spinal_cord_injury_diagnosis": false,
-    "data_source": "mimic_iv"
+    "data_source": "mimic_iv",
+    "smoker_any": true
   },
   {
     "patient_id": "10002930",
@@ -472,7 +676,88 @@
     "fracture_diagnosis": false,
     "diarrhea_diagnosis": false,
     "spinal_cord_injury_diagnosis": false,
-    "data_source": "mimic_iv"
+    "data_source": "mimic_iv",
+    "smoker_any": true
+  },
+  {
+    "patient_id": "10019003",
+    "first_name": "Patient",
+    "last_name": "10019003",
+    "dob": "2083-01-01",
+    "gender": "F",
+    "ethnicity": "WHITE",
+    "height": 157.48,
+    "height_cm": 157.48,
+    "height_ft": 5,
+    "height_in": 2.0,
+    "floor": "Medical/Surgical Intensive Care Unit (MICU/SICU)",
+    "room": "ICU-7289",
+    "bed": "A",
+    "fracture_diagnosis": false,
+    "diarrhea_diagnosis": false,
+    "spinal_cord_injury_diagnosis": false,
+    "data_source": "mimic_iv",
+    "smoker_any": true
+  },
+  {
+    "patient_id": "10020640",
+    "first_name": "Patient",
+    "last_name": "10020640",
+    "dob": "2062-01-01",
+    "gender": "F",
+    "ethnicity": "WHITE",
+    "height": null,
+    "height_cm": null,
+    "height_ft": null,
+    "height_in": null,
+    "floor": "Medical/Surgical Intensive Care Unit (MICU/SICU)",
+    "room": "ICU-9778",
+    "bed": "A",
+    "fracture_diagnosis": false,
+    "diarrhea_diagnosis": false,
+    "spinal_cord_injury_diagnosis": false,
+    "data_source": "mimic_iv",
+    "smoker_any": false
+  },
+  {
+    "patient_id": "10003400",
+    "first_name": "Patient",
+    "last_name": "10003400",
+    "dob": "2062-01-01",
+    "gender": "F",
+    "ethnicity": "BLACK/AFRICAN AMERICAN",
+    "height": 160.02,
+    "height_cm": 160.02,
+    "height_ft": 5,
+    "height_in": 3.0,
+    "floor": "Medical/Surgical Intensive Care Unit (MICU/SICU)",
+    "room": "ICU-7403",
+    "bed": "A",
+    "fracture_diagnosis": false,
+    "diarrhea_diagnosis": false,
+    "spinal_cord_injury_diagnosis": false,
+    "data_source": "mimic_iv",
+    "smoker_any": false
+  },
+  {
+    "patient_id": "10019003",
+    "first_name": "Patient",
+    "last_name": "10019003",
+    "dob": "2083-01-01",
+    "gender": "F",
+    "ethnicity": "WHITE",
+    "height": 157.48,
+    "height_cm": 157.48,
+    "height_ft": 5,
+    "height_in": 2.0,
+    "floor": "Medical/Surgical Intensive Care Unit (MICU/SICU)",
+    "room": "ICU-4014",
+    "bed": "A",
+    "fracture_diagnosis": false,
+    "diarrhea_diagnosis": false,
+    "spinal_cord_injury_diagnosis": false,
+    "data_source": "mimic_iv",
+    "smoker_any": true
   },
   {
     "patient_id": "10035631",
@@ -491,7 +776,68 @@
     "fracture_diagnosis": false,
     "diarrhea_diagnosis": false,
     "spinal_cord_injury_diagnosis": false,
-    "data_source": "mimic_iv"
+    "data_source": "mimic_iv",
+    "smoker_any": true
+  },
+  {
+    "patient_id": "10003400",
+    "first_name": "Patient",
+    "last_name": "10003400",
+    "dob": "2062-01-01",
+    "gender": "F",
+    "ethnicity": "BLACK/AFRICAN AMERICAN",
+    "height": 160.02,
+    "height_cm": 160.02,
+    "height_ft": 5,
+    "height_in": 3.0,
+    "floor": "Medical/Surgical Intensive Care Unit (MICU/SICU)",
+    "room": "ICU-8372",
+    "bed": "A",
+    "fracture_diagnosis": true,
+    "diarrhea_diagnosis": false,
+    "spinal_cord_injury_diagnosis": false,
+    "data_source": "mimic_iv",
+    "smoker_any": false
+  },
+  {
+    "patient_id": "10020786",
+    "first_name": "Patient",
+    "last_name": "10020786",
+    "dob": "2103-01-01",
+    "gender": "F",
+    "ethnicity": "WHITE",
+    "height": null,
+    "height_cm": null,
+    "height_ft": null,
+    "height_in": null,
+    "floor": "Medical/Surgical Intensive Care Unit (MICU/SICU)",
+    "room": "ICU-3112",
+    "bed": "A",
+    "fracture_diagnosis": false,
+    "diarrhea_diagnosis": false,
+    "spinal_cord_injury_diagnosis": false,
+    "data_source": "mimic_iv",
+    "smoker_any": true
+  },
+  {
+    "patient_id": "10032725",
+    "first_name": "Patient",
+    "last_name": "10032725",
+    "dob": "2105-01-01",
+    "gender": "F",
+    "ethnicity": "BLACK/AFRICAN AMERICAN",
+    "height": null,
+    "height_cm": null,
+    "height_ft": null,
+    "height_in": null,
+    "floor": "Medical/Surgical Intensive Care Unit (MICU/SICU)",
+    "room": "ICU-1877",
+    "bed": "A",
+    "fracture_diagnosis": false,
+    "diarrhea_diagnosis": false,
+    "spinal_cord_injury_diagnosis": false,
+    "data_source": "mimic_iv",
+    "smoker_any": false
   },
   {
     "patient_id": "10015931",
@@ -510,6 +856,7 @@
     "fracture_diagnosis": false,
     "diarrhea_diagnosis": false,
     "spinal_cord_injury_diagnosis": false,
-    "data_source": "mimic_iv"
+    "data_source": "mimic_iv",
+    "smoker_any": false
   }
 ]
