@@ -24,6 +24,7 @@ LOINC_GLUCOSE = "2345-7"
 LOINC_ALBUMIN = "1751-7"
 LOINC_TOTAL_BILIRUBIN = "1975-2"
 LOINC_TOTAL_PROTEIN = "2885-2"
+LOINC_SMOKING_STATUS = "72166-2"
 
 SANDBOX_PATIENT_IDS = [
     "erXuFYUfucBZaryVksYEcMg3",
@@ -135,6 +136,10 @@ class EpicFHIRClient:
                     patient.update(encounter_data)
             except FHIRRequestError:
                 pass
+            try:
+                patient["smoker_any"] = self.get_smoking_status(patient_id)
+            except FHIRRequestError:
+                pass
             patients.append(patient)
         return patients
 
@@ -188,6 +193,7 @@ class EpicFHIRClient:
             "fracture_diagnosis": False,
             "diarrhea_diagnosis": False,
             "spinal_cord_injury_diagnosis": False,
+            "smoker_any": False,
             "data_source": "epic_fhir",
         }
 
@@ -348,6 +354,39 @@ class EpicFHIRClient:
     def get_height(self, patient_id, last_n_days=None, count=10):
         """Fetch height observations. Returns list of entries."""
         return self._get_observations(patient_id, LOINC_HEIGHT, last_n_days, count)
+
+    def get_smoking_status(self, patient_id):
+        """Fetch smoking status observation (LOINC 72166-2).
+        
+        Returns True if patient is a current or former smoker, False otherwise.
+        Falls back to False if observation not available.
+        """
+        smoker_values = {
+            "current every day smoker",
+            "current some day smoker",
+            "smoker, current status unknown",
+            "former smoker",
+        }
+        try:
+            entries = self._get_observations(
+                patient_id, LOINC_SMOKING_STATUS, last_n_days=365, count=1
+            )
+        except FHIRRequestError:
+            return False
+        
+        for entry in entries:
+            obs = entry.get("resource", {})
+            val = obs.get("valueCodeableConcept", {})
+            codings = val.get("coding", [])
+            for coding in codings:
+                display = (coding.get("display", "") or "").lower()
+                if display in smoker_values:
+                    return True
+            text = (val.get("text", "") or "").lower()
+            if text in smoker_values:
+                return True
+        
+        return False
 
     def get_patient_encounter(self, patient_id):
         """Fetch the most recent Encounter for admission/location info."""

@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pressure Ulcer Monitoring (PIMAP)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/1.2.1/chartjs-plugin-zoom.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -504,9 +506,61 @@
         }
 
         .vitals-section.expanded {
-            max-height: 800px;
+            max-height: 5000px;
             padding: 20px 20px;
             transition: max-height 0.3s ease, padding 0.1s ease;
+        }
+
+        .vitals-table-scroll {
+            max-height: 400px;
+            overflow-y: auto;
+            border-radius: 5px;
+            background: white;
+            margin-top: 15px;
+        }
+
+        .vitals-table-scroll .vitals-table {
+            margin-top: 0;
+        }
+
+        .vitals-table-scroll .vitals-table th {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+
+        .history-chart-container {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0 15px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        .history-chart-container h4 {
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+
+        .chart-help {
+            font-size: 0.78rem;
+            color: #7f8c8d;
+            margin-top: 8px;
+        }
+
+        .chart-reset-btn {
+            background: #95a5a6;
+            color: white;
+            border: none;
+            padding: 4px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            margin-top: 8px;
+        }
+
+        .chart-reset-btn:hover {
+            background: #7f8c8d;
         }
 
         .loading-row {
@@ -768,14 +822,6 @@
             </div>
         </div>
 
-        <!-- Patient Details Screen -->
-        <div id="patient-details" class="screen">
-            <button class="back-btn" onclick="showScreen('patients')">&larr; Back to Patient List</button>
-            <div id="patientDetailsContent">
-                <!-- Patient details will be populated by JavaScript -->
-            </div>
-        </div>
-
         <!-- PU Dashboard Screen -->
         <div id="dashboard" class="screen">
             <h2>Pressure Ulcer Prediction Dashboard</h2>
@@ -819,14 +865,10 @@
     <script>
         // API Configuration
         const API_BASE_URL = 'http://127.0.0.1:3000'; // Change to your deployed API URL
-        
+
         let patients = [];
-        let patientVitals = {};
 
         let dashboardData = [];
-
-        let currentPatient = null;
-        let currentChart = null;
 
         function showScreen(screenName) {
             // Hide all screens
@@ -941,8 +983,9 @@
                     if (vitalsSection && icon) {
                         vitalsSection.classList.add('expanded');
                         icon.textContent = '▼';
-                        if (vitalsCache[patient.patient_id]) {
-                            vitalsSection.innerHTML = vitalsCache[patient.patient_id];
+                        if (vitalsHistoryData[patient.patient_id]) {
+                            vitalsSection.innerHTML = buildVitalsHistoryHTML(patient.patient_id);
+                            createHistoryChart(patient.patient_id);
                         }
                     }
                 }
@@ -956,151 +999,357 @@
                 case 'Low': return '#27ae60';
                 case 'NoData': return '#7f8c8d';
                 case 'Unknown': return '#95a5a6';
+                // XGBoost model risk levels
+                case 'High-severity HAPI': return '#e74c3c';
+                case 'Low-severity HAPI': return '#f39c12';
+                case 'No HAPI': return '#27ae60';
                 default: return '#95a5a6';
+            }
+        }
+
+        function riskPriority(level) {
+            // Sort priority: high risk first. Handles both the mock
+            // predictor levels and the XGBoost model levels.
+            switch (level) {
+                case 'High':
+                case 'High-severity HAPI':
+                    return 0;
+                case 'Moderate':
+                case 'Low-severity HAPI':
+                    return 1;
+                case 'Low':
+                case 'No HAPI':
+                    return 2;
+                default:
+                    return 3;
+            }
+        }
+
+        function riskLevelClass(level) {
+            // CSS class for the dashboard priority badge.
+            switch (level) {
+                case 'High':
+                case 'High-severity HAPI':
+                    return 'priority-high';
+                case 'Moderate':
+                case 'Low-severity HAPI':
+                    return 'priority-medium';
+                case 'Low':
+                case 'No HAPI':
+                    return 'priority-low';
+                default:
+                    return '';
             }
         }
         
         const expandedSections = {};
-        const vitalsCache = {};
+
+        // ---- Shared vitals history rendering (patients list + dashboard) ----
+
+        const vitalsHistoryData = {};  // patientId -> {vitals, predictions, showChart}
+        const historyCharts = {};      // patientId -> Chart.js instance
+
+        function getPatientRecord(patientId) {
+            return patients.find(p => p.patient_id === patientId) || null;
+        }
+
+        function shouldShowHistoryChart(patientId, predictions) {
+            // The Braden-vs-model-risk comparison chart is a demo-data
+            // feature: it requires stored prediction history, which only
+            // the MIMIC data source provides.
+            const patient = getPatientRecord(patientId);
+            return !!(
+                patient &&
+                patient.data_source === 'mimic_iv' &&
+                predictions &&
+                predictions.length > 0
+            );
+        }
+
+        function computeBradenTotal(vital) {
+            const parts = [
+                vital.braden_sensory_perception,
+                vital.braden_moisture,
+                vital.braden_activity,
+                vital.braden_mobility,
+                vital.braden_nutrition,
+                vital.braden_friction_shear
+            ];
+            if (parts.some(v => v === null || v === undefined || isNaN(v))) {
+                return null;
+            }
+            return parts.reduce((sum, v) => sum + v, 0);
+        }
+
+        function buildVitalsHistoryHTML(patientId) {
+            const data = vitalsHistoryData[patientId];
+            const predByTimestamp = {};
+            for (const p of data.predictions) {
+                predByTimestamp[p.timestamp] = p;
+            }
+
+            const vitalsRows = data.vitals.map(vital => {
+                const bradenScore = computeBradenTotal(vital);
+                const pred = predByTimestamp[vital.timestamp];
+                const riskDisplay = pred ?
+                    `<span style="color: ${getRiskColor(pred.risk_level)}; font-weight: bold;">${pred.risk_level}</span>` :
+                    '<span style="color: #95a5a6;">No prediction</span>';
+                return `
+                    <tr>
+                        <td>${new Date(vital.timestamp).toLocaleString()}</td>
+                        <td>${vital.daily_weight || 'N/A'}</td>
+                        <td>${vital.arterial_blood_pressure_systolic || 'N/A'}</td>
+                        <td>${vital.arterial_o2_saturation || 'N/A'}%</td>
+                        <td>${vital.glucose_whole_blood || 'N/A'}</td>
+                        <td>${vital.albumin || 'N/A'}</td>
+                        <td>${vital.icu_stay_duration || 'N/A'}</td>
+                        <td>${bradenScore || 'N/A'}</td>
+                        <td>${riskDisplay}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            const chartHTML = data.showChart ? `
+                <div class="history-chart-container">
+                    <h4>Braden Score vs Predicted Risk Over Time</h4>
+                    <canvas id="history-chart-${patientId}" height="140"></canvas>
+                    <div class="chart-help">
+                        Scroll to zoom in on a time range, drag to pan, and use
+                        &quot;Reset zoom&quot; to restore the full timeline. Braden score
+                        on the left axis (higher = lower risk); model risk score on
+                        the right axis (higher = higher risk).
+                    </div>
+                    <button class="chart-reset-btn" onclick="resetHistoryChart('${patientId}')">Reset zoom</button>
+                </div>
+            ` : '';
+
+            return `
+                ${chartHTML}
+                <div style="margin-bottom: 10px;">
+                    <label><input type="checkbox" checked onchange="toggleColumn(this, 0)"> Timestamp</label>
+                    <label><input type="checkbox" checked onchange="toggleColumn(this, 1)"> Weight</label>
+                    <label><input type="checkbox" checked onchange="toggleColumn(this, 2)"> BP Systolic</label>
+                    <label><input type="checkbox" checked onchange="toggleColumn(this, 3)"> O2 Sat</label>
+                    <label><input type="checkbox" checked onchange="toggleColumn(this, 4)"> Glucose</label>
+                    <label><input type="checkbox" checked onchange="toggleColumn(this, 5)"> Albumin</label>
+                    <label><input type="checkbox" checked onchange="toggleColumn(this, 6)"> ICU Days</label>
+                    <label><input type="checkbox" checked onchange="toggleColumn(this, 7)"> Braden Score</label>
+                    <label><input type="checkbox" checked onchange="toggleColumn(this, 8)"> PU Risk</label>
+                </div>
+                <div class="vitals-table-scroll">
+                    <table class="vitals-table" style="margin-top: 0;">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Weight</th>
+                                <th>BP Systolic</th>
+                                <th>O2 Sat</th>
+                                <th>Glucose</th>
+                                <th>Albumin</th>
+                                <th>ICU Days</th>
+                                <th>Braden Score</th>
+                                <th>PU Risk</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${vitalsRows}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        function destroyHistoryChart(patientId) {
+            if (historyCharts[patientId]) {
+                historyCharts[patientId].destroy();
+                delete historyCharts[patientId];
+            }
+        }
+
+        function resetHistoryChart(patientId) {
+            if (historyCharts[patientId]) {
+                historyCharts[patientId].resetZoom();
+            }
+        }
+
+        function createHistoryChart(patientId) {
+            const data = vitalsHistoryData[patientId];
+            if (!data || !data.showChart) return;
+            const canvas = document.getElementById(`history-chart-${patientId}`);
+            if (!canvas || typeof Chart === 'undefined') return;
+
+            const chrono = [...data.vitals].sort(
+                (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
+            );
+            const predByTimestamp = {};
+            for (const p of data.predictions) {
+                predByTimestamp[p.timestamp] = p;
+            }
+
+            const labels = chrono.map(v => new Date(v.timestamp).toLocaleString());
+            const bradenData = chrono.map(v => computeBradenTotal(v));
+            const riskData = chrono.map(v => {
+                const pred = predByTimestamp[v.timestamp];
+                return (pred && pred.risk_score !== null && pred.risk_score !== undefined)
+                    ? pred.risk_score : null;
+            });
+
+            destroyHistoryChart(patientId);
+
+            historyCharts[patientId] = new Chart(canvas.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Braden Score (reported)',
+                            data: bradenData,
+                            yAxisID: 'yBraden',
+                            borderColor: '#3498db',
+                            backgroundColor: 'rgba(52, 152, 219, 0.15)',
+                            tension: 0.1,
+                            spanGaps: false,
+                            pointRadius: 0,
+                            borderWidth: 2
+                        },
+                        {
+                            label: 'Predicted risk score',
+                            data: riskData,
+                            yAxisID: 'yRisk',
+                            borderColor: '#e74c3c',
+                            backgroundColor: 'rgba(231, 76, 60, 0.15)',
+                            tension: 0.1,
+                            spanGaps: true,
+                            pointRadius: 0,
+                            borderWidth: 2
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    scales: {
+                        x: {
+                            ticks: {
+                                maxTicksLimit: 10,
+                                maxRotation: 0,
+                                autoSkip: true
+                            }
+                        },
+                        yBraden: {
+                            type: 'linear',
+                            position: 'left',
+                            min: 6,
+                            max: 23,
+                            title: {
+                                display: true,
+                                text: 'Braden Score'
+                            }
+                        },
+                        yRisk: {
+                            type: 'linear',
+                            position: 'right',
+                            min: 0,
+                            max: 1,
+                            title: {
+                                display: true,
+                                text: 'Predicted Risk (0-1)'
+                            },
+                            grid: {
+                                drawOnChartArea: false
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        tooltip: {
+                            callbacks: {
+                                title: function(items) {
+                                    return new Date(chrono[items[0].dataIndex].timestamp).toLocaleString();
+                                },
+                                label: function(item) {
+                                    if (item.dataset.yAxisID === 'yBraden') {
+                                        return ` Braden: ${item.parsed.y === null ? 'N/A' : item.parsed.y}`;
+                                    }
+                                    const pred = predByTimestamp[chrono[item.dataIndex].timestamp];
+                                    const level = pred ? pred.risk_level : 'No prediction';
+                                    return ` Risk: ${item.parsed.y === null ? 'N/A' : item.parsed.y.toFixed(3)} (${level})`;
+                                }
+                            }
+                        },
+                        zoom: {
+                            zoom: {
+                                wheel: {
+                                    enabled: true
+                                },
+                                pinch: {
+                                    enabled: true
+                                },
+                                mode: 'x'
+                            },
+                            pan: {
+                                enabled: true,
+                                mode: 'x'
+                            },
+                            limits: {
+                                x: {
+                                    min: 'original',
+                                    max: 'original'
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        async function loadVitalsHistory(patientId) {
+            // Returns the vitals history data for a patient, fetching on
+            // first request and caching for subsequent expansions.
+            if (vitalsHistoryData[patientId]) {
+                return vitalsHistoryData[patientId];
+            }
+            const response = await fetch(`${API_BASE_URL}/patients/${patientId}/vitals`);
+            const data = await response.json();
+            const vitals = data.vitals || [];
+            const predictions = data.predictions || [];
+            vitalsHistoryData[patientId] = {
+                vitals: vitals,
+                predictions: predictions,
+                showChart: shouldShowHistoryChart(patientId, predictions)
+            };
+            return vitalsHistoryData[patientId];
+        }
         
         async function toggleVitals(patientId) {
             const vitalsSection = document.getElementById(`vitals-${patientId}`);
             const icon = document.getElementById(`icon-${patientId}`);
-            
+
             if (expandedSections[patientId]) {
                 // Collapse
                 vitalsSection.classList.remove('expanded');
                 icon.textContent = '▶';
                 expandedSections[patientId] = false;
+                destroyHistoryChart(patientId);
             } else {
                 // Expand
                 expandedSections[patientId] = true;
                 vitalsSection.classList.add('expanded');
                 icon.textContent = '▼';
-                
-                // Load vitals if not already cached
-                if (!vitalsCache[patientId]) {
-                    // Show table structure immediately
-                    const tableStructure = `
-                        <h4 style="margin-bottom: 15px;">Vitals History</h4>
-                        <table class="vitals-table">
-                            <thead>
-                                <tr>
-                                    <th>Timestamp</th>
-                                    <th>Weight</th>
-                                    <th>BP Systolic</th>
-                                    <th>O2 Sat</th>
-                                    <th>Glucose</th>
-                                    <th>Albumin</th>
-                                    <th>ICU Days</th>
-                                    <th>Braden Score</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr class="loading-row">
-                                    <td colspan="8">Loading vitals data...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    `;
-                    
-                    vitalsSection.innerHTML = tableStructure;
-                    
-                    try {
-                        const response = await fetch(`${API_BASE_URL}/patients/${patientId}/vitals`);
-                        const data = await response.json();
-                        const vitalsData = data.vitals || [];
-                        const predictions = data.predictions || [];
-                        
-                        const predByTimestamp = {};
-                        for (const p of predictions) {
-                            predByTimestamp[p.timestamp] = p;
-                        }
-                        
-                        const vitalsRows = vitalsData.map(vital => {
-                            const bradenScore = (vital.braden_sensory_perception || 0) + 
-                                               (vital.braden_moisture || 0) + 
-                                               (vital.braden_activity || 0) + 
-                                               (vital.braden_mobility || 0) + 
-                                               (vital.braden_nutrition || 0) + 
-                                               (vital.braden_friction_shear || 0);
-                            const pred = predByTimestamp[vital.timestamp];
-                            const riskDisplay = pred ? 
-                                `<span style="color: ${getRiskColor(pred.risk_level)}; font-weight: bold;">${pred.risk_level}</span>` :
-                                '<span style="color: #95a5a6;">No prediction</span>';
-                            return `
-                                <tr>
-                                    <td>${new Date(vital.timestamp).toLocaleString()}</td>
-                                    <td>${vital.daily_weight || 'N/A'}</td>
-                                    <td>${vital.arterial_blood_pressure_systolic || 'N/A'}</td>
-                                    <td>${vital.arterial_o2_saturation || 'N/A'}%</td>
-                                    <td>${vital.glucose_whole_blood || 'N/A'}</td>
-                                    <td>${vital.albumin || 'N/A'}</td>
-                                    <td>${vital.icu_stay_duration || 'N/A'}</td>
-                                    <td>${bradenScore || 'N/A'}</td>
-                                    <td>${riskDisplay}</td>
-                                </tr>
-                            `;
-                        }).join('');
-                        
-                        // Cache the complete table HTML
-                        vitalsCache[patientId] = `
-                            <div style="margin-bottom: 10px;">
-                                <label><input type="checkbox" checked onchange="toggleColumn(this, 0)"> Timestamp</label>
-                                <label><input type="checkbox" checked onchange="toggleColumn(this, 1)"> Weight</label>
-                                <label><input type="checkbox" checked onchange="toggleColumn(this, 2)"> BP Systolic</label>
-                                <label><input type="checkbox" checked onchange="toggleColumn(this, 3)"> O2 Sat</label>
-                                <label><input type="checkbox" checked onchange="toggleColumn(this, 4)"> Glucose</label>
-                                <label><input type="checkbox" checked onchange="toggleColumn(this, 5)"> Albumin</label>
-                                <label><input type="checkbox" checked onchange="toggleColumn(this, 6)"> ICU Days</label>
-                                <label><input type="checkbox" checked onchange="toggleColumn(this, 7)"> Braden Score</label>
-                                <label><input type="checkbox" checked onchange="toggleColumn(this, 8)"> PU Risk</label>
-                            </div>
-                            <table class="vitals-table">
-                                <thead>
-                                    <tr>
-                                        <th>Timestamp</th>
-                                        <th>Weight</th>
-                                        <th>BP Systolic</th>
-                                        <th>O2 Sat</th>
-                                        <th>Glucose</th>
-                                        <th>Albumin</th>
-                                        <th>ICU Days</th>
-                                        <th>Braden Score</th>
-                                        <th>PU Risk</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${vitalsRows}
-                                </tbody>
-                            </table>
-                        `;
-                        
-                        vitalsSection.innerHTML = vitalsCache[patientId];
-                    } catch (error) {
-                        console.error(`Error loading vitals for ${patientId}:`, error);
-                        vitalsSection.innerHTML = `
-                            <h4 style="margin-bottom: 15px;">Vitals History</h4>
-                            <table class="vitals-table">
-                                <thead>
-                                    <tr>
-                                        <th>Timestamp</th>
-                                        <th>Weight</th>
-                                        <th>BP Systolic</th>
-                                        <th>O2 Sat</th>
-                                        <th>Glucose</th>
-                                        <th>Braden Score</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr class="loading-row"><td colspan="6">Error loading vitals</td></tr>
-                                </tbody>
-                            </table>
-                        `;
-                    }
-                } else {
-                    // Use cached data
-                    vitalsSection.innerHTML = vitalsCache[patientId];
+
+                vitalsSection.innerHTML = '<div class="vitals-loading">Loading vitals data...</div>';
+                try {
+                    await loadVitalsHistory(patientId);
+                    vitalsSection.innerHTML = buildVitalsHistoryHTML(patientId);
+                    createHistoryChart(patientId);
+                } catch (error) {
+                    console.error(`Error loading vitals for ${patientId}:`, error);
+                    vitalsSection.innerHTML = '<div class="vitals-loading">Error loading vitals</div>';
                 }
             }
         }
@@ -1247,239 +1496,7 @@
             renderPatientsList(filteredPatients);
         }
 
-        async function showPatientDetails(patientId) {
-            currentPatient = patients.find(p => p.patient_id === patientId);
-            if (!currentPatient) return;
-            
-            // Show loading immediately
-            document.getElementById('patients').classList.remove('active');
-            document.getElementById('patient-details').classList.add('active');
-            document.getElementById('patientDetailsContent').innerHTML = '<div style="text-align: center; padding: 50px;">Loading patient details...</div>';
-            
-            // Load patient vitals
-            try {
-                const [vitalsResponse, predResponse] = await Promise.all([
-                    fetch(`${API_BASE_URL}/patients/${patientId}/vitals`),
-                    fetch(`${API_BASE_URL}/patients/${patientId}/predict`, { method: 'POST' })
-                ]);
-                
-                const vitalsData = await vitalsResponse.json();
-                const prediction = await predResponse.json();
-                
-                patientVitals[patientId] = vitalsData.vitals || [];
-                currentPatient.prediction = prediction;
-                currentPatient.riskLevel = prediction.risk_level;
-            } catch (error) {
-                console.error('Error loading patient data:', error);
-            }
-
-            const vitals = patientVitals[patientId] && patientVitals[patientId][0] || {};
-            const bradenScore = (vitals.braden_sensory_perception || 0) + 
-                              (vitals.braden_moisture || 0) + 
-                              (vitals.braden_activity || 0) + 
-                              (vitals.braden_mobility || 0) + 
-                              (vitals.braden_nutrition || 0) + 
-                              (vitals.braden_friction_shear || 0);
-            
-            const content = document.getElementById('patientDetailsContent');
-            content.innerHTML = `
-                <h2>${currentPatient.name} - Health Metrics</h2>
-                
-                <div class="metrics-grid">
-                    <div class="metric-card ${bradenScore <= 12 ? 'critical' : bradenScore <= 16 ? 'warning' : ''}">
-                        <div class="metric-value">${bradenScore || 'N/A'}</div>
-                        <div class="metric-label">Braden Score</div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-value">${vitals.daily_weight || 'N/A'}</div>
-                        <div class="metric-label">Weight (kg)</div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-value">${vitals.arterial_blood_pressure_systolic || 'N/A'}</div>
-                        <div class="metric-label">Systolic BP</div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-value">${vitals.glucose_whole_blood || 'N/A'}</div>
-                        <div class="metric-label">Glucose</div>
-                    </div>
-                    <div class="metric-card ${(vitals.arterial_o2_saturation || 100) < 95 ? 'warning' : ''}">
-                        <div class="metric-value">${vitals.arterial_o2_saturation || 'N/A'}%</div>
-                        <div class="metric-label">Oxygen Saturation</div>
-                    </div>
-                    <div class="metric-card ${currentPatient.riskLevel === 'High' ? 'critical' : currentPatient.riskLevel === 'Moderate' ? 'warning' : ''}">
-                        <div class="metric-value">${currentPatient.riskLevel || 'Unknown'}</div>
-                        <div class="metric-label">PU Risk Level</div>
-                    </div>
-                </div>
-
-                <div class="chart-container">
-                    <h3>Vital Signs Trend</h3>
-                    <div style="margin-bottom: 15px;">
-                        <label><input type="checkbox" checked onchange="updateChart()" data-field="daily_weight"> Weight</label>
-                        <label><input type="checkbox" checked onchange="updateChart()" data-field="arterial_blood_pressure_systolic"> BP Systolic</label>
-                        <label><input type="checkbox" checked onchange="updateChart()" data-field="arterial_o2_saturation"> O2 Saturation</label>
-                        <label><input type="checkbox" onchange="updateChart()" data-field="glucose_whole_blood"> Glucose</label>
-                        <label><input type="checkbox" onchange="updateChart()" data-field="albumin"> Albumin</label>
-                        <label><input type="checkbox" onchange="updateChart()" data-field="braden_total"> Braden Score</label>
-                    </div>
-                    <canvas id="vitalsChart" width="400" height="200"></canvas>
-                </div>
-
-                <div class="recommendations">
-                    <h3>🔔 Latest Pressure Ulcer Notifications & Recommendations</h3>
-                    ${getRecommendations(currentPatient)}
-                </div>
-            `;
-
-            // Destroy existing chart if it exists
-            if (currentChart) {
-                currentChart.destroy();
-            }
-
-            // Create vital signs chart
-            setTimeout(() => {
-                createVitalsChart();
-            }, 100);
-            
-            // Remove the screen transition that was moved earlier
-            // (it's now handled at the beginning of the function)
-
-            // Switch to patient details screen
-            document.getElementById('patients').classList.remove('active');
-            document.getElementById('patient-details').classList.add('active');
-        }
-
-        function getRecommendations(patient) {
-            const recommendations = {
-                'High': [
-                    'URGENT: Reposition patient every 2 hours to prevent pressure ulcer development',
-                    'Consider pressure redistribution mattress or cushioning devices',
-                    'Perform comprehensive skin assessment twice daily',
-                    'Consult wound care specialist for prevention strategies',
-                    'Monitor nutrition status and ensure adequate protein intake'
-                ],
-                'Medium': [
-                    'Reposition patient every 3-4 hours during bed rest',
-                    'Encourage mobility and range of motion exercises',
-                    'Maintain skin hygiene and moisturization',
-                    'Monitor for early signs of skin breakdown',
-                    'Ensure adequate hydration and nutrition'
-                ],
-                'Low': [
-                    'Continue current mobility and activity level',
-                    'Regular skin inspection during routine care',
-                    'Maintain healthy nutrition and hydration',
-                    'Monitor for any changes in mobility or health status'
-                ]
-            };
-
-            return recommendations[patient.riskLevel].map(rec => 
-                `<div class="recommendation-item">• ${rec}</div>`
-            ).join('');
-        }
-
-        function createVitalsChart() {
-            const allVitals = patientVitals[currentPatient.patient_id] || [];
-            if (allVitals.length === 0) return;
-            
-            // Sort by timestamp and show last 5 data points if available
-            const sortedVitals = allVitals.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-            const vitals = sortedVitals.slice(-5);
-            
-            const ctx = document.getElementById('vitalsChart').getContext('2d');
-            
-            // Prepare data from actual vitals
-            const labels = vitals.map(v => new Date(v.timestamp).toLocaleDateString());
-            
-            const datasets = [];
-            const colors = ['#e74c3c', '#3498db', '#f39c12', '#27ae60', '#9b59b6', '#e67e22'];
-            let colorIndex = 0;
-            
-            // Get selected fields
-            const checkboxes = document.querySelectorAll('input[data-field]');
-            checkboxes.forEach(checkbox => {
-                if (checkbox.checked) {
-                    const field = checkbox.dataset.field;
-                    let data, label;
-                    
-                    if (field === 'braden_total') {
-                        data = vitals.map(v => 
-                            (v.braden_sensory_perception || 0) + 
-                            (v.braden_moisture || 0) + 
-                            (v.braden_activity || 0) + 
-                            (v.braden_mobility || 0) + 
-                            (v.braden_nutrition || 0) + 
-                            (v.braden_friction_shear || 0)
-                        );
-                        label = 'Braden Score';
-                    } else {
-                        data = vitals.map(v => v[field] || 0);
-                        label = {
-                            'daily_weight': 'Weight (kg)',
-                            'arterial_blood_pressure_systolic': 'BP Systolic',
-                            'arterial_o2_saturation': 'O2 Saturation (%)',
-                            'glucose_whole_blood': 'Glucose',
-                            'albumin': 'Albumin'
-                        }[field] || field;
-                    }
-                    
-                    datasets.push({
-                        label: label,
-                        data: data,
-                        borderColor: colors[colorIndex % colors.length],
-                        backgroundColor: colors[colorIndex % colors.length] + '20',
-                        tension: 0.4,
-                        fill: false
-                    });
-                    colorIndex++;
-                }
-            });
-
-            currentChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: datasets
-                },
-                options: {
-                    responsive: true,
-                    interaction: {
-                        mode: 'index',
-                        intersect: false,
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: false,
-                            title: {
-                                display: true,
-                                text: 'Values'
-                            }
-                        },
-                        x: {
-                            title: {
-                                display: true,
-                                text: 'Date'
-                            }
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            position: 'top',
-                        }
-                    }
-                }
-            });
-        }
-        
-        function updateChart() {
-            if (currentChart) {
-                currentChart.destroy();
-            }
-            createVitalsChart();
-        }
-
         const dashboardExpandedSections = {};
-        const dashboardVitalsCache = {};
         
         function renderDashboard() {
             const tbody = document.getElementById('dashboardTableBody');
@@ -1496,7 +1513,7 @@
                         <span class="expand-icon" id="dash-icon-${patientId}" style="margin-right: 8px;">▶</span>
                         <strong>${item.patient}</strong>
                     </td>
-                <td><span class="priority-${item.riskLevel ? item.riskLevel.toLowerCase() : 'unknown'}">${item.riskLevel || 'Unknown'}</span></td>
+                <td><span class="${riskLevelClass(item.riskLevel)}">${item.riskLevel || 'Unknown'}</span></td>
                     <td><strong>${item.score}%</strong></td>
                     <td>${item.nextSteps}</td>
                     <td><span class="status-${item.status}">${item.status.charAt(0).toUpperCase() + item.status.slice(1)}</span></td>
@@ -1526,139 +1543,27 @@
             const vitalsRow = document.getElementById(`dash-vitals-row-${patientId}`);
             const vitalsSection = document.getElementById(`dash-vitals-${patientId}`);
             const icon = document.getElementById(`dash-icon-${patientId}`);
-            
+
             if (dashboardExpandedSections[patientId]) {
                 // Collapse
                 vitalsRow.style.display = 'none';
                 icon.textContent = '▶';
                 dashboardExpandedSections[patientId] = false;
+                destroyHistoryChart(patientId);
             } else {
                 // Expand
                 dashboardExpandedSections[patientId] = true;
                 vitalsRow.style.display = 'table-row';
                 icon.textContent = '▼';
-                
-                // Load vitals if not already cached
-                if (!dashboardVitalsCache[patientId]) {
-                    // Show table structure immediately
-                    const tableStructure = `
-                        <h4 style="margin: 15px 0;">Vitals History</h4>
-                        <table class="vitals-table" style="margin: 0;">
-                            <thead>
-                                <tr>
-                                    <th>Timestamp</th>
-                                    <th>Weight</th>
-                                    <th>BP Systolic</th>
-                                    <th>O2 Sat</th>
-                                    <th>Glucose</th>
-                                    <th>Braden Score</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr class="loading-row">
-                                    <td colspan="6">Loading vitals data...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    `;
-                    
-                    vitalsSection.innerHTML = tableStructure;
-                    
-                    try {
-                        const response = await fetch(`${API_BASE_URL}/patients/${patientId}/vitals`);
-                        const data = await response.json();
-                        const vitalsData = data.vitals || [];
-                        const predictions = data.predictions || [];
-                        
-                        const predByTimestamp = {};
-                        for (const p of predictions) {
-                            predByTimestamp[p.timestamp] = p;
-                        }
-                        
-                        const vitalsRows = vitalsData.map(vital => {
-                            const bradenScore = (vital.braden_sensory_perception || 0) + 
-                                               (vital.braden_moisture || 0) + 
-                                               (vital.braden_activity || 0) + 
-                                               (vital.braden_mobility || 0) + 
-                                               (vital.braden_nutrition || 0) + 
-                                               (vital.braden_friction_shear || 0);
-                            const pred = predByTimestamp[vital.timestamp];
-                            const riskDisplay = pred ? 
-                                `<span style="color: ${getRiskColor(pred.risk_level)}; font-weight: bold;">${pred.risk_level}</span>` :
-                                '<span style="color: #95a5a6;">No prediction</span>';
-                            return `
-                                <tr>
-                                    <td>${new Date(vital.timestamp).toLocaleString()}</td>
-                                    <td>${vital.daily_weight || 'N/A'}</td>
-                                    <td>${vital.arterial_blood_pressure_systolic || 'N/A'}</td>
-                                    <td>${vital.arterial_o2_saturation || 'N/A'}%</td>
-                                    <td>${vital.glucose_whole_blood || 'N/A'}</td>
-                                    <td>${vital.albumin || 'N/A'}</td>
-                                    <td>${vital.icu_stay_duration || 'N/A'}</td>
-                                    <td>${bradenScore || 'N/A'}</td>
-                                    <td>${riskDisplay}</td>
-                                </tr>
-                            `;
-                        }).join('');
-                        
-                        // Cache the complete table HTML
-                        dashboardVitalsCache[patientId] = `
-                            <h4 style="margin: 15px 0;">Vitals History</h4>
-                            <div style="margin-bottom: 10px;">
-                                <label><input type="checkbox" checked onchange="toggleColumn(this, 0)"> Timestamp</label>
-                                <label><input type="checkbox" checked onchange="toggleColumn(this, 1)"> Weight</label>
-                                <label><input type="checkbox" checked onchange="toggleColumn(this, 2)"> BP Systolic</label>
-                                <label><input type="checkbox" checked onchange="toggleColumn(this, 3)"> O2 Sat</label>
-                                <label><input type="checkbox" checked onchange="toggleColumn(this, 4)"> Glucose</label>
-                                <label><input type="checkbox" checked onchange="toggleColumn(this, 5)"> Albumin</label>
-                                <label><input type="checkbox" checked onchange="toggleColumn(this, 6)"> ICU Days</label>
-                                <label><input type="checkbox" checked onchange="toggleColumn(this, 7)"> Braden Score</label>
-                            </div>
-                            <table class="vitals-table" style="margin: 0;">
-                                <thead>
-                                    <tr>
-                                        <th>Timestamp</th>
-                                        <th>Weight</th>
-                                        <th>BP Systolic</th>
-                                        <th>O2 Sat</th>
-                                        <th>Glucose</th>
-                                        <th>Albumin</th>
-                                        <th>ICU Days</th>
-                                        <th>Braden Score</th>
-                                        <th>PU Risk</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${vitalsRows}
-                                </tbody>
-                            </table>
-                        `;
-                        
-                        vitalsSection.innerHTML = dashboardVitalsCache[patientId];
-                    } catch (error) {
-                        console.error(`Error loading vitals for ${patientId}:`, error);
-                        vitalsSection.innerHTML = `
-                            <h4 style="margin: 15px 0;">Vitals History</h4>
-                            <table class="vitals-table" style="margin: 0;">
-                                <thead>
-                                    <tr>
-                                        <th>Timestamp</th>
-                                        <th>Weight</th>
-                                        <th>BP Systolic</th>
-                                        <th>O2 Sat</th>
-                                        <th>Glucose</th>
-                                        <th>Braden Score</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr class="loading-row"><td colspan="6">Error loading vitals</td></tr>
-                                </tbody>
-                            </table>
-                        `;
-                    }
-                } else {
-                    // Use cached data
-                    vitalsSection.innerHTML = dashboardVitalsCache[patientId];
+
+                vitalsSection.innerHTML = '<div class="vitals-loading">Loading vitals data...</div>';
+                try {
+                    await loadVitalsHistory(patientId);
+                    vitalsSection.innerHTML = buildVitalsHistoryHTML(patientId);
+                    createHistoryChart(patientId);
+                } catch (error) {
+                    console.error(`Error loading vitals for ${patientId}:`, error);
+                    vitalsSection.innerHTML = '<div class="vitals-loading">Error loading vitals</div>';
                 }
             }
         }
@@ -1699,9 +1604,9 @@
                     }
                     
                     // Count risk levels for stats
-                    if (riskLevel === 'High') highRiskCount++;
-                    if (riskLevel === 'Moderate') mediumRiskCount++;
-                    
+                    if (riskPriority(riskLevel) === 0) highRiskCount++;
+                    if (riskPriority(riskLevel) === 1) mediumRiskCount++;
+
                     // Add all patients to dashboard (High, Moderate, Low, Unknown/NoData)
                     const newPatient = {
                         patient: `${patient.first_name || patient.name?.split(' ')[0]} ${patient.last_name || patient.name?.split(' ')[1]}`,
@@ -1711,31 +1616,21 @@
                         nextSteps: getNextSteps(riskLevel),
                         status: 'pending'
                     };
-                    
+
                     dashboardData.push(newPatient);
-                    
+
                     // Sort to maintain High first, then Moderate, then Low, then Unknown/NoData
-                    dashboardData.sort((a, b) => {
-                        const priority = { 'High': 0, 'Moderate': 1, 'Low': 2 };
-                        const aPriority = priority[a.riskLevel] ?? 3;
-                        const bPriority = priority[b.riskLevel] ?? 3;
-                        return aPriority - bPriority;
-                    });
-                    
+                    dashboardData.sort((a, b) => riskPriority(a.riskLevel) - riskPriority(b.riskLevel));
+
                     // Re-render entire dashboard to maintain sort order
                     renderDashboard();
-                    
+
                     // Update stats incrementally
                     updateStatsCards(highRiskCount, mediumRiskCount, highRiskCount + mediumRiskCount, patientsData.length);
                 }
-                
+
                 // Sort dashboard data: High first, then Moderate, then Low, then Unknown/NoData
-                dashboardData.sort((a, b) => {
-                    const priority = { 'High': 0, 'Moderate': 1, 'Low': 2 };
-                    const aPriority = priority[a.riskLevel] ?? 3;
-                    const bPriority = priority[b.riskLevel] ?? 3;
-                    return aPriority - bPriority;
-                });
+                dashboardData.sort((a, b) => riskPriority(a.riskLevel) - riskPriority(b.riskLevel));
                 renderDashboard();
                 
                 // Final update
@@ -1757,7 +1652,7 @@
                     <span class="expand-icon" id="dash-icon-${patientId}" style="margin-right: 8px;">▶</span>
                     <strong>${item.patient}</strong>
                 </td>
-                <td><span class="priority-${item.riskLevel.toLowerCase()}">${item.riskLevel}</span></td>
+                <td><span class="${riskLevelClass(item.riskLevel)}">${item.riskLevel}</span></td>
                 <td><strong>${item.score}%</strong></td>
                 <td>${item.nextSteps}</td>
                 <td><span class="status-${item.status}">${item.status.charAt(0).toUpperCase() + item.status.slice(1)}</span></td>
@@ -1795,8 +1690,12 @@
         function getNextSteps(riskLevel) {
             const steps = {
                 'High': 'URGENT: Reposition every 2 hours, immediate skin assessment',
-                'Moderate': 'Reposition every 3-4 hours, monitor skin condition', 
-                'Low': 'Continue current care, monitor'
+                'Moderate': 'Reposition every 3-4 hours, monitor skin condition',
+                'Low': 'Continue current care, monitor',
+                // XGBoost model risk levels
+                'High-severity HAPI': 'URGENT: Reposition every 2 hours, immediate skin assessment',
+                'Low-severity HAPI': 'Reposition every 3-4 hours, monitor skin condition',
+                'No HAPI': 'Continue current care, monitor'
             };
             return steps[riskLevel] || 'Monitor patient';
         }

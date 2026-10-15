@@ -11,16 +11,36 @@ sys.path.insert(
 from .data_source import get_data_source
 
 
+def _parse_max_records(event: dict):
+    """Parse the optional maxRecords query string parameter.
+
+    Returns None (no limit; all records for the newest ICU stay) when
+    the parameter is absent or invalid.
+    """
+    params = event.get("queryStringParameters") or {}
+    raw = params.get("maxRecords")
+    if raw is None:
+        return None
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return value if value > 0 else None
+
+
 def get_patient_vitals(event, context):
     """Lambda handler: GET /patients/{patient_id}/vitals
 
     Returns vitals history and stored predictions for a specific patient
-    from the configured data source.
+    from the configured data source. By default all records from the
+    newest ICU stay are returned; pass ?maxRecords=N to limit.
     """
     try:
         patient_id = event["pathParameters"]["patient_id"]
         data_source = get_data_source()
-        vitals = data_source.get_vitals(patient_id, max_records=20)
+        vitals = data_source.get_vitals(
+            patient_id, max_records=_parse_max_records(event)
+        )
         predictions = data_source.get_predictions(patient_id)
 
         return {

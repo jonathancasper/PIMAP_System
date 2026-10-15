@@ -16,15 +16,26 @@ from pathlib import Path
 
 class DataSource(Protocol):
     """Protocol defining the data source interface."""
-    
+
     def get_patients(self) -> List[Dict[str, Any]]:
         """Return list of all patients."""
         ...
-    
-    def get_vitals(self, patient_id: str, max_records: int = 20) -> List[Dict[str, Any]]:
-        """Return vitals history for a specific patient."""
+
+    def get_patient(self, patient_id: str) -> Optional[Dict[str, Any]]:
+        """Return a single patient record, or None if not found."""
         ...
-    
+
+    def get_vitals(
+        self, patient_id: str, max_records: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """Return vitals history for a specific patient.
+
+        max_records limits the number of records returned; None means
+        no limit (all records, restricted to the newest ICU stay where
+        applicable).
+        """
+        ...
+
     def get_predictions(self, patient_id: str) -> List[Dict[str, Any]]:
         """Return stored predictions for a specific patient."""
         ...
@@ -39,10 +50,20 @@ class EpicDataSource:
     
     def get_patients(self) -> List[Dict[str, Any]]:
         return self._client.get_all_dashboard_patients()
-    
-    def get_vitals(self, patient_id: str, max_records: int = 20) -> List[Dict[str, Any]]:
-        return self._client.get_patient_vitals(patient_id, max_records=max_records)
-    
+
+    def get_patient(self, patient_id: str) -> Optional[Dict[str, Any]]:
+        patients = self._client.get_all_dashboard_patients(patient_ids=[patient_id])
+        for patient in patients:
+            if str(patient.get("patient_id")) == str(patient_id):
+                return patient
+        return None
+
+    def get_vitals(
+        self, patient_id: str, max_records: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        count = max_records if max_records is not None else 20
+        return self._client.get_patient_vitals(patient_id, max_records=count)
+
     def get_predictions(self, patient_id: str) -> List[Dict[str, Any]]:
         return []
 
@@ -132,11 +153,32 @@ class MimicDataSource:
             if p['patient_id'] not in unique_patients:
                 unique_patients[p['patient_id']] = p
         return list(unique_patients.values())
-    
-    def get_vitals(self, patient_id: str, max_records: int = 20) -> List[Dict[str, Any]]:
-        """Return vitals history for a specific patient with field mapping."""
+
+    def get_patient(self, patient_id: str) -> Optional[Dict[str, Any]]:
+        """Return a single patient record, or None if not found."""
+        for patient in self.get_patients():
+            if str(patient.get('patient_id')) == str(patient_id):
+                return patient
+        return None
+
+    def get_vitals(
+        self, patient_id: str, max_records: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """Return vitals history for a specific patient with field mapping.
+
+        Records are restricted to the newest record's ICU stay (when
+        stay_id is present) before slicing to max_records, so a patient
+        with multiple stays never mixes timelines or forward-fills
+        across a stay boundary. When max_records is None, all records
+        from the newest stay are returned.
+        """
         index = self._build_vitals_index()
-        raw_vitals = index.get(str(patient_id), [])[:max_records]
+        records = index.get(str(patient_id), [])
+        if records:
+            newest_stay_id = records[0].get('stay_id')
+            if newest_stay_id is not None:
+                records = [r for r in records if r.get('stay_id') == newest_stay_id]
+        raw_vitals = records if max_records is None else records[:max_records]
         
         mapped_vitals = []
         for v in raw_vitals:

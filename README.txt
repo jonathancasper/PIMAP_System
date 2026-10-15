@@ -258,13 +258,17 @@ MIMIC_DATA_PATH
   Path to MIMIC demo data directory (optional, defaults to data/mimic_demo/)
 
 XGBOOST_MODEL_PATH
-  Path to trained XGBoost model file (optional)
-  If not set, uses MockPredictor with Braden heuristic
+  Path to the directory containing the trained XGBoost model files
+  (optional). The directory must contain:
+    - hapi_xgb_v1.json        (trained model)
+    - hapi_xgb_schema_v1.json (feature schema)
+  If not set, uses MockPredictor with Braden heuristic.
+  For AWS deployments, pass the directory (as packaged in the Lambda)
+  via the XGBoostModelPath SAM parameter.
 
 PREDICTION_LOOKBACK_DAYS
   Days of historical data to consider for predictions (default: 7)
-  Used to find most recent Braden assessment and will be used by
-  XGBoost predictor for computing feature trends.
+  Used by the mock predictor to find the most recent Braden assessment.
 
 VITALS_TABLE
   DynamoDB table name for staff actions (default: patient_vitals)
@@ -348,16 +352,35 @@ MockPredictor (default)
   - NoData: No Braden assessment within lookback window
 
 XGBoostPredictor
-  Uses externally trained XGBoost model.
-  Requires model file and xgboost package.
-  
-  Will use same lookback window for historical features
-  (trends, most recent values, etc.)
-  
+  Uses externally trained XGBoost model (415 temporal features,
+  three-class HAPI risk).
+  Requires the xgboost package and model files following the naming
+  convention:
+    {model_name}_v{version}.json          e.g. hapi_xgb_v1.json
+    {model_name}_schema_v{version}.json   e.g. hapi_xgb_schema_v1.json
+
+  The dashboard's predict endpoint passes the patient's demographics
+  plus vitals history to the model's feature extractor, with the
+  prediction time anchored to the most recent vitals record (so
+  date-shifted demo data windows correctly).
+
+  Risk levels:
+  - No HAPI
+  - Low-severity HAPI
+  - High-severity HAPI
+
   To use:
-  1. Train model and save to file
-  2. Set XGBOOST_MODEL_PATH environment variable
+  1. Train model and save it as model_input/hapi_xgb_v1.json
+     with schema model_input/hapi_xgb_schema_v1.json
+  2. Set XGBOOST_MODEL_PATH to the directory containing them
+     (e.g. XGBOOST_MODEL_PATH=model_input)
   3. Deploy or restart application
+
+  To regenerate the stored demo prediction history
+  (data/mimic_demo/predictions_curated.json) with the model:
+    python3 scripts/generate_mimic_predictions.py \
+        --predictor xgboost --model-dir model_input
+  (Use --predictor mock to restore the Braden-heuristic history.)
 
 ================================================================================
 FHIR WRITE-BACK (FUTURE)

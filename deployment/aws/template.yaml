@@ -14,6 +14,13 @@ Parameters:
     AllowedValues:
       - epic
       - mimic
+  XGBoostModelPath:
+    Type: String
+    Default: ''
+    Description: >
+      Optional directory (inside the Lambda package) containing the trained
+      XGBoost model files hapi_xgb_v1.json and hapi_xgb_schema_v1.json.
+      When empty, the dashboard falls back to the Braden-based mock predictor.
 
 Globals:
   Function:
@@ -25,6 +32,7 @@ Globals:
         EPIC_CLIENT_ID: !Ref EpicClientId
         DATA_SOURCE: !Ref DataSource
         MIMIC_DATA_PATH: /var/task/data/mimic_demo
+        XGBOOST_MODEL_PATH: !Ref XGBoostModelPath
 
 Resources:
   VitalsTable:
