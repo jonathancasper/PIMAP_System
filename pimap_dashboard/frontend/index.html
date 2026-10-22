@@ -923,7 +923,8 @@
                         method: 'POST'
                     });
                     const prediction = await predResponse.json();
-                    patients[i].riskLevel = prediction.risk_level;
+                    patients[i].riskLevel = displayRiskLevel(prediction);
+                    patients[i].probabilities = prediction.probabilities || null;
                     patients[i].predictionScore = Math.round(prediction.prediction_score * 100);
                     
                     // Update UI incrementally for both views
@@ -967,6 +968,7 @@
                             <div class="patient-meta">Ethnicity: ${patient.ethnicity || 'Unknown'}${patient.race && patient.race !== patient.ethnicity ? ` (${patient.race})` : ''}</div>
                             <div class="patient-meta">Admitted: ${patient.admission_time ? new Date(patient.admission_time).toLocaleDateString() : 'N/A'}</div>
                             <span class="risk-badge" style="background: ${getRiskColor(patient.riskLevel)}; color: white; padding: 4px 8px; border-radius: 4px;">${patient.riskLevel}</span>
+                            ${patient.probabilities ? `<div class="patient-meta">Class probabilities: ${formatProbabilities(patient.probabilities)}</div>` : ''}
                         </div>
                     </div>
                     <div class="vitals-section" id="vitals-${patient.patient_id}">
@@ -1005,6 +1007,37 @@
                 case 'No HAPI': return '#27ae60';
                 default: return '#95a5a6';
             }
+        }
+
+        function argmaxRiskLevel(probabilities) {
+            // Most likely class from the three XGBoost probabilities.
+            if (!probabilities) return null;
+            const entries = [
+                ['No HAPI', probabilities.no_hapi],
+                ['Low-severity HAPI', probabilities.low_severity_hapi],
+                ['High-severity HAPI', probabilities.advanced_severity_hapi]
+            ].filter(e => e[1] !== null && e[1] !== undefined);
+            if (!entries.length) return null;
+            return entries.reduce((a, b) => (b[1] > a[1] ? b : a))[0];
+        }
+
+        function displayRiskLevel(prediction) {
+            // Current risk assessment: prefer the argmax of the three
+            // class probabilities; fall back to the model's risk_level.
+            if (!prediction) return 'Unknown';
+            return argmaxRiskLevel(prediction.probabilities) || prediction.risk_level || 'Unknown';
+        }
+
+        function formatProbabilities(probabilities) {
+            if (!probabilities) return '';
+            const fmt = v => (v === null || v === undefined) ? null : v.toFixed(2);
+            const parts = [
+                ['No', probabilities.no_hapi],
+                ['Low', probabilities.low_severity_hapi],
+                ['High', probabilities.advanced_severity_hapi]
+            ].map(e => `${e[0]} ${fmt(e[1])}`);
+            if (parts.some(p => p.includes('null'))) return '';
+            return parts.join(' · ');
         }
 
         function riskPriority(level) {
@@ -1196,11 +1229,16 @@
                 }
                 return lastBraden;
             });
-            const riskData = chrono.map(v => {
-                const pred = predByTimestamp[v.timestamp];
-                return (pred && pred.risk_score !== null && pred.risk_score !== undefined)
-                    ? pred.risk_score : null;
-            });
+            const probOf = (t, key) => {
+                const pred = predByTimestamp[t];
+                return (pred && pred.probabilities &&
+                        pred.probabilities[key] !== null &&
+                        pred.probabilities[key] !== undefined)
+                    ? pred.probabilities[key] : null;
+            };
+            const noHapiData = chrono.map(v => probOf(v.timestamp, 'no_hapi'));
+            const lowSevData = chrono.map(v => probOf(v.timestamp, 'low_severity_hapi'));
+            const highSevData = chrono.map(v => probOf(v.timestamp, 'advanced_severity_hapi'));
 
             destroyHistoryChart(patientId);
 
@@ -1221,11 +1259,33 @@
                             borderWidth: 2
                         },
                         {
-                            label: 'Predicted risk score',
-                            data: riskData,
+                            label: 'No HAPI (probability)',
+                            data: noHapiData,
+                            yAxisID: 'yRisk',
+                            borderColor: '#27ae60',
+                            backgroundColor: 'rgba(39, 174, 96, 0.10)',
+                            tension: 0.1,
+                            spanGaps: true,
+                            pointRadius: 0,
+                            borderWidth: 2
+                        },
+                        {
+                            label: 'Low-severity HAPI (probability)',
+                            data: lowSevData,
+                            yAxisID: 'yRisk',
+                            borderColor: '#f39c12',
+                            backgroundColor: 'rgba(243, 156, 18, 0.10)',
+                            tension: 0.1,
+                            spanGaps: true,
+                            pointRadius: 0,
+                            borderWidth: 2
+                        },
+                        {
+                            label: 'High-severity HAPI (probability)',
+                            data: highSevData,
                             yAxisID: 'yRisk',
                             borderColor: '#e74c3c',
-                            backgroundColor: 'rgba(231, 76, 60, 0.15)',
+                            backgroundColor: 'rgba(231, 76, 60, 0.10)',
                             tension: 0.1,
                             spanGaps: true,
                             pointRadius: 0,
@@ -1285,8 +1345,26 @@
                                         return ` Braden: ${item.parsed.y === null ? 'N/A' : item.parsed.y}`;
                                     }
                                     const pred = predByTimestamp[chrono[item.dataIndex].timestamp];
-                                    const level = pred ? pred.risk_level : 'No prediction';
-                                    return ` Risk: ${item.parsed.y === null ? 'N/A' : item.parsed.y.toFixed(3)} (${level})`;
+                                    if (!pred || !pred.probabilities) {
+                                        return ` ${item.dataset.label}: No prediction`;
+                                    }
+                                    return ` ${item.dataset.label}: ${item.parsed.y === null ? 'N/A' : item.parsed.y.toFixed(3)}`;
+                                },
+                                afterBody: function(items) {
+                                    const pred = predByTimestamp[chrono[items[0].dataIndex].timestamp];
+                                    if (!pred || !pred.probabilities) return '';
+                                    const p = pred.probabilities;
+                                    const entries = [
+                                        ['No HAPI', p.no_hapi],
+                                        ['Low-severity HAPI', p.low_severity_hapi],
+                                        ['High-severity HAPI', p.advanced_severity_hapi]
+                                    ].filter(e => e[1] !== null && e[1] !== undefined);
+                                    if (!entries.length) return '';
+                                    const top = entries.reduce((a, b) => (b[1] > a[1] ? b : a));
+                                    const lines = entries.map(
+                                        e => ` ${e[0]}: ${e[1].toFixed(3)}${e === top ? '  <- most likely' : ''}`
+                                    );
+                                    return ['', ...lines];
                                 }
                             }
                         },
@@ -1521,7 +1599,7 @@
                         <span class="expand-icon" id="dash-icon-${patientId}" style="margin-right: 8px;">▶</span>
                         <strong>${item.patient}</strong>
                     </td>
-                <td><span class="${riskLevelClass(item.riskLevel)}">${item.riskLevel || 'Unknown'}</span></td>
+                <td><span class="${riskLevelClass(item.riskLevel)}">${item.riskLevel || 'Unknown'}</span>${item.probabilities ? `<br><small style="color:#7f8c8d;">${formatProbabilities(item.probabilities)}</small>` : ''}</td>
                     <td><strong>${item.score}%</strong></td>
                     <td>${item.nextSteps}</td>
                     <td><span class="status-${item.status}">${item.status.charAt(0).toUpperCase() + item.status.slice(1)}</span></td>
@@ -1593,17 +1671,19 @@
                 
                 for (const patient of patientsData) {
                     // Use existing prediction data if available, otherwise fetch
-                    let riskLevel, predictionScore;
+                    let riskLevel, predictionScore, probabilities;
                     if (patient.riskLevel && patient.riskLevel !== 'Loading...') {
                         riskLevel = patient.riskLevel;
                         predictionScore = patient.predictionScore;
+                        probabilities = patient.probabilities || null;
                     } else {
                         try {
                             const predResponse = await fetch(`${API_BASE_URL}/patients/${patient.patient_id}/predict`, {
                                 method: 'POST'
                             });
                             const prediction = await predResponse.json();
-                            riskLevel = prediction.risk_level;
+                            riskLevel = displayRiskLevel(prediction);
+                            probabilities = prediction.probabilities || null;
                             predictionScore = Math.round(prediction.prediction_score * 100);
                         } catch (error) {
                             console.error(`Error getting prediction for ${patient.patient_id}:`, error);
@@ -1621,6 +1701,7 @@
                         patientId: patient.patient_id,
                         riskLevel: riskLevel || 'Unknown',
                         score: predictionScore,
+                        probabilities: probabilities,
                         nextSteps: getNextSteps(riskLevel),
                         status: 'pending'
                     };
@@ -1660,7 +1741,7 @@
                     <span class="expand-icon" id="dash-icon-${patientId}" style="margin-right: 8px;">▶</span>
                     <strong>${item.patient}</strong>
                 </td>
-                <td><span class="${riskLevelClass(item.riskLevel)}">${item.riskLevel}</span></td>
+                <td><span class="${riskLevelClass(item.riskLevel)}">${item.riskLevel}</span>${item.probabilities ? `<br><small style="color:#7f8c8d;">${formatProbabilities(item.probabilities)}</small>` : ''}</td>
                 <td><strong>${item.score}%</strong></td>
                 <td>${item.nextSteps}</td>
                 <td><span class="status-${item.status}">${item.status.charAt(0).toUpperCase() + item.status.slice(1)}</span></td>

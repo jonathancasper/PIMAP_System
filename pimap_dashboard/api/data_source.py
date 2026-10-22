@@ -211,21 +211,25 @@ class MimicDataSource:
         return index.get(str(patient_id), [])
     
     def _map_fields(self, record: Dict[str, Any]) -> Dict[str, Any]:
-        """Map MIMIC field names to match FeatureExtractor expectations."""
-        field_mapping = {
+        """Add canonical MIMIC field-name aliases for FeatureExtractor.
+
+        Raw field names are preserved (the XGBoost feature extractor reads
+        e.g. 'glucose'/'spo2' directly); canonical aliases
+        ('glucose_whole_blood', etc.) are added alongside so the mock
+        FeatureExtractor finds its expected names. This matches the
+        mapping behavior of scripts/generate_mimic_predictions.py so
+        live and stored predictions agree.
+        """
+        field_aliases = {
             'braden_sensory': 'braden_sensory_perception',
             'spo2': 'arterial_o2_saturation',
             'glucose': 'glucose_whole_blood',
         }
-        
-        mapped = {}
-        for key, value in record.items():
-            new_key = field_mapping.get(key, key)
-            mapped[new_key] = value
-        
-        if 'icu_stay_duration' in mapped:
-            mapped['icu_stay_duration'] = mapped['icu_stay_duration']
-        
+
+        mapped = dict(record)
+        for raw_key, canonical_key in field_aliases.items():
+            if raw_key in mapped and canonical_key not in mapped:
+                mapped[canonical_key] = mapped[raw_key]
         return mapped
 
 

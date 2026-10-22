@@ -196,6 +196,7 @@ def generate_predictions(
                         "confidence": 0.0,
                         "model_version": predictor.get_model_version(),
                         "imputed_fields": [],
+                        "probabilities": None,
                     })
                     continue
 
@@ -210,6 +211,7 @@ def generate_predictions(
                 "confidence": result.confidence,
                 "model_version": result.model_version,
                 "imputed_fields": result.imputed_features,
+                "probabilities": result.features_used.get("probabilities"),
             })
 
     predictions.sort(key=lambda p: (p["patient_id"], parse_timestamp(p["timestamp"])))

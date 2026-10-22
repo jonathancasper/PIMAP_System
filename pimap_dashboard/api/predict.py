@@ -137,6 +137,10 @@ def predict_pressure_ulcer(event, context):
 
         data_source_name = "mimic_iv" if os.environ.get("DATA_SOURCE") == "mimic" else "epic_fhir"
 
+        probabilities = None
+        if isinstance(getattr(result, "features_used", None), dict):
+            probabilities = result.features_used.get("probabilities")
+
         return {
             "statusCode": 200,
             "headers": {
@@ -148,6 +152,7 @@ def predict_pressure_ulcer(event, context):
                     "patient_id": result.patient_id,
                     "prediction_score": result.risk_score,
                     "risk_level": result.risk_level,
+                    "probabilities": probabilities,
                     "confidence": result.confidence,
                     "timestamp": result.timestamp.isoformat(),
                     "model_version": result.model_version,
