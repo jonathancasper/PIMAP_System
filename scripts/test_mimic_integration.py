@@ -52,10 +52,12 @@ def test_vitals():
     context = {}
     result = get_patient_vitals(event, context)
     assert result['statusCode'] == 200
-    vitals = json.loads(result['body'])
+    body = json.loads(result['body'])
+    vitals = body.get('vitals', [])
     assert len(vitals) > 0
-    print(f"  ✓ Returned {len(vitals)} vital records")
-    
+    print(f"  ✓ Returned {len(vitals)} vital records (full newest ICU stay)")
+    print(f"  ✓ Returned {len(body.get('predictions', []))} stored predictions")
+
     return vitals
 
 

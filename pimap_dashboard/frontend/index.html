@@ -1186,8 +1186,16 @@
                 predByTimestamp[p.timestamp] = p;
             }
 
+            let lastBraden = null;
+
             const labels = chrono.map(v => new Date(v.timestamp).toLocaleString());
-            const bradenData = chrono.map(v => computeBradenTotal(v));
+            const bradenData = chrono.map(v => {
+                const total = computeBradenTotal(v);
+                if (total !== null) {
+                    lastBraden = total;
+                }
+                return lastBraden;
+            });
             const riskData = chrono.map(v => {
                 const pred = predByTimestamp[v.timestamp];
                 return (pred && pred.risk_score !== null && pred.risk_score !== undefined)

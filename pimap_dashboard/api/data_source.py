@@ -84,19 +84,31 @@ class MimicDataSource:
         return Path(__file__).parent.parent.parent / "data" / "mimic_demo"
     
     def _load_patients(self) -> List[Dict[str, Any]]:
-        """Load patients from curated JSON file."""
+        """Load patients from curated JSON file.
+
+        Prefers the date-shifted variant (current-ICU-stay dates, ages
+        display correctly for demos); falls back to the original curated
+        file.
+        """
         if self._patients is None:
-            patients_path = self.data_path / "patients_curated.json"
+            patients_path = self.data_path / "dateshifted_patients_curated.json"
+            if not patients_path.exists():
+                patients_path = self.data_path / "patients_curated.json"
             with open(patients_path) as f:
                 self._patients = json.load(f)
         return self._patients
     
     def _load_vitals(self) -> List[Dict[str, Any]]:
-        """Load vitals from curated gzipped JSON file."""
+        """Load vitals from curated JSON file.
+
+        Prefers the date-shifted variant (current-ICU-stay dates, ages
+        display correctly for demos); falls back to the original curated
+        gzipped file.
+        """
         if self._vitals is None:
-            vitals_path = self.data_path / "vitals_curated.json.gz"
+            vitals_path = self.data_path / "dateshifted_vitals_curated.json"
             if not vitals_path.exists():
-                vitals_path = self.data_path / "new_vitals_curated.json"
+                vitals_path = self.data_path / "vitals_curated.json.gz"
             if vitals_path.suffix == ".gz":
                 with gzip.open(vitals_path, 'rt') as f:
                     self._vitals = json.load(f)
@@ -106,9 +118,15 @@ class MimicDataSource:
         return self._vitals
     
     def _load_predictions(self) -> List[Dict[str, Any]]:
-        """Load predictions from curated JSON file."""
+        """Load predictions from curated JSON file.
+
+        Prefers the date-shifted variant (timestamps aligned with the
+        dateshifted vitals); falls back to the original curated file.
+        """
         if self._predictions is None:
-            pred_path = self.data_path / "predictions_curated.json"
+            pred_path = self.data_path / "dateshifted_predictions_curated.json"
+            if not pred_path.exists():
+                pred_path = self.data_path / "predictions_curated.json"
             if pred_path.exists():
                 with open(pred_path) as f:
                     self._predictions = json.load(f)
