@@ -34,7 +34,8 @@ pimap_epic/
 pimap_predict/
   ML-based pressure ulcer risk prediction.
   
-  predictor.py            - XGBoost and Mock (Braden) predictors
+  predictor.py            - XGBoost (3-class: No HAPI / Low-severity /
+                            High-severity) and Mock (Braden) predictors
   feature_extractor.py    - Transform FHIR data to model features
 
 pimap_dashboard/
@@ -59,6 +60,16 @@ pimap_dashboard/
    
    test_epic_auth.py       - Diagnose Epic FHIR authentication issues
    test_epic_patients.py   - Diagnose Epic patients endpoint issues
+   curate_mimic_patients.py - Curate MIMIC demo patients (one ICU stay
+                              per patient; ulcer-event stay selection)
+   generate_mimic_predictions.py - Generate stored prediction history
+                              (per-class probabilities included)
+   adjust_mimic_dates.py   - Date-shift curated data for demo display
+                              (outputs dateshifted_*.json; use a fixed
+                              --seed, see mimic_extraction/README.md)
+   print_ulcer_event_dateshifted.py - Print date-shifted timestamps of
+                              the demo ulcer events
+   test_mimic_integration.py - MIMIC data source integration test
 
  tests/
   Unit tests for all modules.
@@ -82,15 +93,33 @@ data/
     MIMIC-IV demo data for local testing (DATA_SOURCE=mimic)
     
     patients_curated.json    - Patient list
-    vitals_curated.json.gz   - Time-series vitals records
+    vitals_curated.json.gz  - Time-series vitals records (original MIMIC dates)
     predictions_curated.json - Stored prediction history (MIMIC only;
                                Epic path returns empty list as stub)
+    dateshifted_patients_curated.json
+    dateshifted_vitals_curated.json
+    dateshifted_predictions_curated.json
+                            - Date-shifted variants (preferred by the
+                              dashboard; timestamps shifted so each
+                              patient appears as a current ICU stay)
     
     Vitals records contain:
     - Braden subscale scores (sparse, often null)
     - Vital signs (SpO2, BP, heart rate, temp)
     - Lab values (glucose, albumin, bilirubin, etc.)
     - ICU stay metadata (stay_id, duration)
+    
+    Prediction records contain:
+    - risk_level, risk_score, confidence (XGBoost or mock)
+    - probabilities: per-class probabilities
+      (no_hapi / low_severity_hapi / advanced_severity_hapi)
+      from the 3-class XGBoost model
+
+ NOTE: See mimic_extraction/README.md for the full data regeneration
+ sequence and important caveats (fixed-seeded date shifting, ulcer-event
+ stay selection, per-class probabilities, field aliasing). Published
+ date-shifted ulcer-event timestamps are only valid for the dateshifted
+ files generated with the same seed.
 
  requirements.txt
   Python dependencies. Install with:
