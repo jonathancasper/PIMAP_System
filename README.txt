@@ -42,18 +42,35 @@ pimap_dashboard/
   Demo dashboard for visualization.
   
   api/
+    core.py              - Shared API cores (used by Lambda AND Vercel
+                           adapters; no deployment-specific logic)
     patients.py           - GET /patients Lambda handler
     vitals.py             - GET /patients/{id}/vitals Lambda handler
     actions.py            - POST /patients/{id}/actions Lambda handler
     predict.py            - POST /patients/{id}/predict Lambda handler
   frontend/
-    index.html            - Dashboard HTML
+    index.html            - Dashboard HTML (single frontend source)
+
+ api/  (project root)
+   Vercel serverless functions - thin adapters around
+   pimap_dashboard/api/core.py (same cores the Lambda handlers use).
+   Also routed by dev_server.py for local development.
+
+ dev_server.py
+   Local development server emulating Vercel routing
+   (dashboard at /, API at /api/patients/...).
+
+ vercel.json
+   Vercel deployment config (rewrites, CORS, build step that copies
+   the frontend into public/).
 
  deployment/
    Deployment configurations.
    
    aws/
      template.yaml         - AWS SAM template for Lambda deployment
+                              (routes at both /patients/... and
+                              /api/patients/... to match the frontend)
 
  scripts/
    Utility scripts.
@@ -200,19 +217,26 @@ Using MIMIC-IV Demo Data (recommended for local testing):
   1. Install dependencies:
      pip install -r requirements.txt
 
-  2. Set data source:
+  2. Data source (DATA_SOURCE defaults to 'mimic'):
      export DATA_SOURCE=mimic
 
   3. Run tests:
      PYTHONPATH=. python3 tests/testpimappredict.py
 
-  4. Start local API (requires SAM CLI):
+  4. Start the local Vercel-style dev server (no SAM CLI needed):
+     python3 dev_server.py
+     Dashboard: http://localhost:3000/ (API at /api/patients/...)
+
+  Alternative: start the API via SAM (routes at both /patients/... and
+  /api/patients/...):
      cd deployment/aws
      sam build
      sam local start-api
 
   5. Open dashboard:
-     Open pimap_dashboard/frontend/index.html in a browser
+     http://localhost:3000/ (dev_server.py)
+     Or open pimap_dashboard/frontend/index.html served from any static
+     host that exposes the API under /api/patients/... on the same origin
 
 Using Epic FHIR Sandbox:
   1. Install dependencies:
@@ -221,7 +245,7 @@ Using Epic FHIR Sandbox:
   2. Set up Epic credentials:
      export EPIC_CLIENT_ID="your-client-id"
      export EPIC_PRIVATE_KEY_PATH="/path/to/privatekey.pem"
-     
+
      Or store client ID in:
      ~/.config/epic_fhir/client_id
 
@@ -239,7 +263,38 @@ Using Epic FHIR Sandbox:
 
   6. Open dashboard:
      Open pimap_dashboard/frontend/index.html in a browser
-     (Update API_URL in the HTML to point to your local endpoint)
+     (Serve it from the same origin as the API, or update API_BASE_URL
+     in the HTML to point to your API endpoint)
+
+================================================================================
+VERCEL DEPLOYMENT
+================================================================================
+
+The dashboard can be deployed on Vercel (no AWS required):
+
+1. Layout:
+   - vercel.json         - rewrites (/api/patients/:id/... to the Python
+                           functions in api/) + CORS headers; build step
+                           copies pimap_dashboard/frontend/index.html to
+                           public/index.html (the single frontend source)
+   - api/                - Vercel serverless functions; thin adapters
+                           around the shared cores in
+                           pimap_dashboard/api/core.py (the same code the
+                           AWS Lambda handlers use)
+
+2. Environment variables (set in the Vercel dashboard):
+   - DATA_SOURCE         - 'mimic' (default) or 'epic'
+   - XGBOOST_MODEL_PATH  - directory containing hapi_xgb_v1.json and
+                           hapi_xgb_schema_v1.json (e.g. 'model_input').
+                           NOTE: model_input/ is gitignored (proprietary);
+                           it must be present in the deploy environment.
+   - MIMIC_DATA_PATH      - optional override for the demo data directory
+                           (defaults to data/mimic_demo in the project root)
+
+3. Deploy:
+   vercel deploy
+   (Python dependencies install from requirements.txt; the full file is
+   required - the XGBoost model needs xgboost/pandas/etc.)
 
 ================================================================================
 AWS DEPLOYMENT
@@ -269,10 +324,10 @@ ENVIRONMENT VARIABLES
 ================================================================================
 
 DATA_SOURCE
-  Data source for patient data (default: 'epic')
+  Data source for patient data (default: 'mimic')
   Valid values:
-    - 'epic': Epic FHIR API (requires Epic credentials)
     - 'mimic': MIMIC-IV demo data from data/mimic_demo/
+    - 'epic': Epic FHIR API (requires Epic credentials)
 
 EPIC_CLIENT_ID
   Epic FHIR OAuth client ID (required for DATA_SOURCE=epic)

@@ -10,7 +10,7 @@ Parameters:
   DataSource:
     Type: String
     Description: Data source for patient data
-    Default: epic
+    Default: mimic
     AllowedValues:
       - epic
       - mimic
@@ -73,6 +73,12 @@ Resources:
             RestApiId: !Ref PatientApi
             Path: /patients
             Method: get
+        GetPatientsApiAlias:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PatientApi
+            Path: /api/patients
+            Method: get
 
   GetPatientVitalsFunction:
     Type: AWS::Serverless::Function
@@ -87,6 +93,12 @@ Resources:
             RestApiId: !Ref PatientApi
             Path: /patients/{patient_id}/vitals
             Method: get
+        GetVitalsApiAlias:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PatientApi
+            Path: /api/patients/{patient_id}/vitals
+            Method: get
 
   PredictPressureUlcerFunction:
     Type: AWS::Serverless::Function
@@ -100,6 +112,12 @@ Resources:
           Properties:
             RestApiId: !Ref PatientApi
             Path: /patients/{patient_id}/predict
+            Method: post
+        PredictApiAlias:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PatientApi
+            Path: /api/patients/{patient_id}/predict
             Method: post
 
   UpdateActionFunction:
@@ -116,6 +134,12 @@ Resources:
           Properties:
             RestApiId: !Ref PatientApi
             Path: /patients/{patient_id}/actions
+            Method: post
+        UpdateActionApiAlias:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PatientApi
+            Path: /api/patients/{patient_id}/actions
             Method: post
 
 Outputs:

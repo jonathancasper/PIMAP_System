@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Secrets / credentials (never commit)
+privatekey.pem
+*.pem
+.env
+
+# Vercel local artifacts
+.vercel
+.env*
+
+# Vercel build output (generated from pimap_dashboard/frontend/index.html)
+public/
+
+# Trained models (proprietary - not committed)
+model_input/
+
+# Large local-only MIMIC extraction outputs
+data/mimic_demo/patients_mimic_demo.json
+data/mimic_demo/vitals_mimic_demo.json
+
+# OS / editor noise
+.DS_Store
+Thumbs.db

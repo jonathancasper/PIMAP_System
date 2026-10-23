@@ -864,7 +864,10 @@
 
     <script>
         // API Configuration
-        const API_BASE_URL = 'http://127.0.0.1:3000'; // Change to your deployed API URL
+        // Relative base: the API is served from the same origin as this
+        // page (AWS API Gateway aliases, Vercel rewrites, and dev_server.py
+        // all expose the dashboard handlers under /api/patients/...).
+        const API_BASE_URL = '';
 
         let patients = [];
 
@@ -891,7 +894,7 @@
         async function loadPatients() {
             try {
                 console.log('Loading patients from:', API_BASE_URL);
-                const response = await fetch(`${API_BASE_URL}/patients`);
+                const response = await fetch(`${API_BASE_URL}/api/patients`);
                 const data = await response.json();
                 console.log('Received patient data:', data);
                 
@@ -919,7 +922,7 @@
         async function loadRiskLevels() {
             for (let i = 0; i < patients.length; i++) {
                 try {
-                    const predResponse = await fetch(`${API_BASE_URL}/patients/${patients[i].patient_id}/predict`, {
+                    const predResponse = await fetch(`${API_BASE_URL}/api/patients/${patients[i].patient_id}/predict`, {
                         method: 'POST'
                     });
                     const prediction = await predResponse.json();
@@ -1009,23 +1012,44 @@
             }
         }
 
-        function argmaxRiskLevel(probabilities) {
-            // Most likely class from the three XGBoost probabilities.
+        // Two-stage decision rule from model_input/hapi_xgb_schema_v1.json
+        // ("decision_rule": t_pi, t_adv). Matches
+        // pimap_predict/predictor.py XGBoostPredictor._apply_decision_rule.
+        const DECISION_RULE = { t_pi: 0.19999999999999996, t_adv: 0.05 };
+
+        function decisionRuleLevel(probabilities) {
+            // Given probabilities {no_hapi: p0, low_severity_hapi: p1,
+            // advanced_severity_hapi: p2}:
+            //   p_any = p1 + p2
+            //   if p_any < t_pi          -> 'No HAPI' (class 0)
+            //   else p_adv_given_pi = p2 / p_any
+            //        >= t_adv            -> 'High-severity HAPI' (class 2)
+            //        otherwise            -> 'Low-severity HAPI' (class 1)
             if (!probabilities) return null;
-            const entries = [
-                ['No HAPI', probabilities.no_hapi],
-                ['Low-severity HAPI', probabilities.low_severity_hapi],
-                ['High-severity HAPI', probabilities.advanced_severity_hapi]
-            ].filter(e => e[1] !== null && e[1] !== undefined);
-            if (!entries.length) return null;
-            return entries.reduce((a, b) => (b[1] > a[1] ? b : a))[0];
+            const pLow = probabilities.low_severity_hapi;
+            const pHigh = probabilities.advanced_severity_hapi;
+            if (pLow === null || pLow === undefined ||
+                pHigh === null || pHigh === undefined) {
+                return null;
+            }
+            const pAny = pLow + pHigh;
+            if (pAny < DECISION_RULE.t_pi) {
+                return 'No HAPI';
+            }
+            const pAdvGivenPi = pAny > 0 ? (pHigh / pAny) : 0;
+            return pAdvGivenPi >= DECISION_RULE.t_adv
+                ? 'High-severity HAPI'
+                : 'Low-severity HAPI';
         }
 
         function displayRiskLevel(prediction) {
-            // Current risk assessment: prefer the argmax of the three
-            // class probabilities; fall back to the model's risk_level.
+            // Current risk assessment: apply the model's two-stage
+            // decision rule (t_pi / t_adv) to the three class
+            // probabilities; fall back to the model's risk_level when
+            // probabilities are unavailable (e.g. Epic/mock paths).
             if (!prediction) return 'Unknown';
-            return argmaxRiskLevel(prediction.probabilities) || prediction.risk_level || 'Unknown';
+            return decisionRuleLevel(prediction.probabilities)
+                || prediction.risk_level || 'Unknown';
         }
 
         function formatProbabilities(probabilities) {
@@ -1079,6 +1103,83 @@
 
         // ---- Shared vitals history rendering (patients list + dashboard) ----
 
+        const HISTORY_HOUR_MS = 3600000;
+        const HISTORY_DAY_MS = 86400000;
+
+        function buildHistoryXTicks(scale) {
+            // Synthetic x-axis ticks (not tied to data points):
+            //   visible span <= 24 h -> hour boundaries, military HH:MM
+            //   visible span >  24 h -> local-midnight day boundaries, M/D
+            // Ticks are reference marks; the span test uses the scale's
+            // current min/max, so the mode follows the zoom/pan state
+            // (buildTicks/afterBuildTicks re-run whenever the range
+            // changes). Step sizes keep the tick count ~<= 10.
+            if (!scale || scale.axis !== 'x') return;
+            const min = scale.min, max = scale.max;
+            if (min == null || max == null ||
+                !isFinite(min) || !isFinite(max) || max <= min) return;
+
+            const spanMs = max - min;
+            const ticks = [];
+
+            if (spanMs > HISTORY_DAY_MS) {
+                // Day mode: local midnights from the first midnight at/after
+                // min through max. Date-field increments (not ms) keep ticks
+                // on midnight across DST transitions.
+                const dMin = new Date(min);
+                let day = new Date(
+                    dMin.getFullYear(), dMin.getMonth(), dMin.getDate() + 1
+                );
+                let step = 1;
+                if (spanMs > 10 * HISTORY_DAY_MS) {
+                    step = Math.ceil(spanMs / HISTORY_DAY_MS / 10);
+                }
+                while (day.getTime() <= max) {
+                    ticks.push({ value: day.getTime() });
+                    day = new Date(
+                        day.getFullYear(), day.getMonth(), day.getDate() + step
+                    );
+                }
+            } else {
+                // Hour mode: full hours from the next hour boundary at/after
+                // min through max.
+                const dMin = new Date(min);
+                let hour = new Date(
+                    dMin.getFullYear(), dMin.getMonth(), dMin.getDate(),
+                    dMin.getHours() + 1
+                );
+                let step = 1;
+                if (spanMs > 10 * HISTORY_HOUR_MS) {
+                    step = Math.ceil(spanMs / HISTORY_HOUR_MS / 10);
+                }
+                while (hour.getTime() <= max) {
+                    ticks.push({ value: hour.getTime() });
+                    hour = new Date(
+                        hour.getFullYear(), hour.getMonth(), hour.getDate(),
+                        hour.getHours() + step
+                    );
+                }
+            }
+
+            if (ticks.length) {
+                scale.ticks = ticks;
+            }
+        }
+
+        function formatHistoryTick(value) {
+            // 'this' is the scale. Day mode: M/D (e.g. 10/19). Hour mode:
+            // military time HH:MM (e.g. 23:00), no seconds.
+            const d = new Date(value);
+            if (isNaN(d.getTime())) return '';
+            const spanMs = (this.max ?? 0) - (this.min ?? 0);
+            if (spanMs > HISTORY_DAY_MS) {
+                return (d.getMonth() + 1) + '/' + d.getDate();
+            }
+            const hh = String(d.getHours()).padStart(2, '0');
+            const mm = String(d.getMinutes()).padStart(2, '0');
+            return hh + ':' + mm;
+        }
+
         const vitalsHistoryData = {};  // patientId -> {vitals, predictions, showChart}
         const historyCharts = {};      // patientId -> Chart.js instance
 
@@ -1124,8 +1225,9 @@
             const vitalsRows = data.vitals.map(vital => {
                 const bradenScore = computeBradenTotal(vital);
                 const pred = predByTimestamp[vital.timestamp];
-                const riskDisplay = pred ?
-                    `<span style="color: ${getRiskColor(pred.risk_level)}; font-weight: bold;">${pred.risk_level}</span>` :
+                const predLevel = pred ? displayRiskLevel(pred) : null;
+                const riskDisplay = predLevel ?
+                    `<span style="color: ${getRiskColor(predLevel)}; font-weight: bold;">${predLevel}</span>` :
                     '<span style="color: #95a5a6;">No prediction</span>';
                 return `
                     <tr>
@@ -1221,7 +1323,9 @@
 
             let lastBraden = null;
 
-            const labels = chrono.map(v => new Date(v.timestamp).toLocaleString());
+            // Linear epoch-ms x values: lets the axis place synthetic
+            // reference ticks (hours / midnights) between data points.
+            const timeMs = chrono.map(v => new Date(v.timestamp).getTime());
             const bradenData = chrono.map(v => {
                 const total = computeBradenTotal(v);
                 if (total !== null) {
@@ -1236,20 +1340,25 @@
                         pred.probabilities[key] !== undefined)
                     ? pred.probabilities[key] : null;
             };
-            const noHapiData = chrono.map(v => probOf(v.timestamp, 'no_hapi'));
-            const lowSevData = chrono.map(v => probOf(v.timestamp, 'low_severity_hapi'));
-            const highSevData = chrono.map(v => probOf(v.timestamp, 'advanced_severity_hapi'));
+            const asPoints = vals =>
+                vals.map((y, i) => ({ x: timeMs[i], y: y }));
+            const noHapiData = asPoints(
+                chrono.map(v => probOf(v.timestamp, 'no_hapi')));
+            const lowSevData = asPoints(
+                chrono.map(v => probOf(v.timestamp, 'low_severity_hapi')));
+            const highSevData = asPoints(
+                chrono.map(v => probOf(v.timestamp, 'advanced_severity_hapi')));
+            const bradenPoints = asPoints(bradenData);
 
             destroyHistoryChart(patientId);
 
             historyCharts[patientId] = new Chart(canvas.getContext('2d'), {
                 type: 'line',
                 data: {
-                    labels: labels,
                     datasets: [
                         {
                             label: 'Braden Score (reported)',
-                            data: bradenData,
+                            data: bradenPoints,
                             yAxisID: 'yBraden',
                             borderColor: '#3498db',
                             backgroundColor: 'rgba(52, 152, 219, 0.15)',
@@ -1301,10 +1410,12 @@
                     },
                     scales: {
                         x: {
+                            type: 'linear',
+                            afterBuildTicks: buildHistoryXTicks,
                             ticks: {
-                                maxTicksLimit: 10,
                                 maxRotation: 0,
-                                autoSkip: true
+                                autoSkip: false,
+                                callback: formatHistoryTick
                             }
                         },
                         yBraden: {
@@ -1400,7 +1511,7 @@
             if (vitalsHistoryData[patientId]) {
                 return vitalsHistoryData[patientId];
             }
-            const response = await fetch(`${API_BASE_URL}/patients/${patientId}/vitals`);
+            const response = await fetch(`${API_BASE_URL}/api/patients/${patientId}/vitals`);
             const data = await response.json();
             const vitals = data.vitals || [];
             const predictions = data.predictions || [];
@@ -1664,7 +1775,7 @@
                 renderDashboard(); // Clear table
                 
                 // Use existing patients data instead of fetching again
-                const patientsData = patients.length > 0 ? patients : await fetch(`${API_BASE_URL}/patients`).then(r => r.json());
+                const patientsData = patients.length > 0 ? patients : await fetch(`${API_BASE_URL}/api/patients`).then(r => r.json());
                 
                 let highRiskCount = 0;
                 let mediumRiskCount = 0;
@@ -1678,7 +1789,7 @@
                         probabilities = patient.probabilities || null;
                     } else {
                         try {
-                            const predResponse = await fetch(`${API_BASE_URL}/patients/${patient.patient_id}/predict`, {
+                            const predResponse = await fetch(`${API_BASE_URL}/api/patients/${patient.patient_id}/predict`, {
                                 method: 'POST'
                             });
                             const prediction = await predResponse.json();
@@ -1828,7 +1939,7 @@
             const actionNotes = document.getElementById('actionNotes').value;
             
             try {
-                await fetch(`${API_BASE_URL}/patients/${patientId}/actions`, {
+                await fetch(`${API_BASE_URL}/api/patients/${patientId}/actions`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'

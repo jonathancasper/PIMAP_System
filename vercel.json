@@ -1,0 +1,20 @@
+{
+  "framework": null,
+  "buildCommand": "mkdir -p public && cp pimap_dashboard/frontend/index.html public/index.html",
+  "outputDirectory": "public",
+  "rewrites": [
+    { "source": "/api/patients/:patient_id/vitals", "destination": "/api/patients/[patient_id]/vitals" },
+    { "source": "/api/patients/:patient_id/predict", "destination": "/api/patients/[patient_id]/predict" },
+    { "source": "/api/patients/:patient_id/actions", "destination": "/api/patients/[patient_id]/actions" }
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "*" }
+      ]
+    }
+  ]
+}

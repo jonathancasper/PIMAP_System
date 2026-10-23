@@ -238,16 +238,17 @@ _data_source: Optional[DataSource] = None
 
 def get_data_source() -> DataSource:
     """Factory function returning the configured data source.
-    
-    Reads DATA_SOURCE environment variable (default: 'epic').
-    Valid values: 'epic', 'mimic'
+
+    Reads DATA_SOURCE environment variable (default: 'mimic' - the
+    MIMIC-IV demo data, which all demo deployments use). Valid values:
+    'epic', 'mimic'.
     """
     global _data_source
-    
+
     if _data_source is not None:
         return _data_source
-    
-    source_name = os.environ.get('DATA_SOURCE', 'epic').lower()
+
+    source_name = os.environ.get('DATA_SOURCE', 'mimic').lower()
     
     if source_name == 'epic':
         _data_source = EpicDataSource()
